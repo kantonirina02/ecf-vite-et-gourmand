@@ -56,25 +56,28 @@ include 'includes/header.php';
                         <?php echo strtoupper(htmlspecialchars($menu['regime'] ?? '')); ?>
                     </span>
                 </div>
-                <p style="font-size: 1.2rem; color: var(--text-muted); line-height:1.8;">
+                <p class="text-muted" style="font-size: 1.1rem; line-height: 1.8;">
                     <?php echo nl2br(htmlspecialchars($menu['description'] ?? '')); ?>
                 </p>
             </div>
 
             <div class="col-lg-5">
-                <div class="p-4" style="background: rgba(0,0,0,0.3); border-radius: 12px; border: 1px solid var(--glass-border);">
-                    <div style="font-size: 2.5rem; color: var(--gold-primary); font-weight:700; margin-bottom: 1rem;">
+                <div class="glass-panel p-4" style="background: rgba(0,0,0,0.3);">
+                    <div class="text-gold fw-bold mb-3" style="font-size: 2.5rem;">
                         <?php echo number_format($menu['prix_min'] ?? 0, 0, ',', ' '); ?>€
-                        <span style="font-size:1rem; font-weight:400; color:var(--text-muted)">/ personne</span>
+                        <span class="text-muted fw-normal" style="font-size: 1rem;">/ personne</span>
                     </div>
-                    <div class="mb-3 font-weight-bold text-white">
-                        <i class="fa-solid fa-users" style="color:var(--gold-primary); margin-right:0.5rem;"></i>
-                        Commande minimum : <?php echo htmlspecialchars($menu['nb_personnes_min'] ?? $menu['nb_personnes_min'] ?? '2'); ?> personnes
+
+                    <div class="text-white fw-bold mb-3">
+                        <i class="fa-solid fa-users text-gold me-2"></i>
+                        Commande minimum : <?php echo htmlspecialchars($menu['nb_personnes_min'] ?? '2'); ?> personnes
                     </div>
-                    <div class="mb-4 font-weight-bold text-white">
-                        <i class="fa-solid fa-box-open" style="color:var(--gold-primary); margin-right:0.5rem;"></i>
+
+                    <div class="text-white fw-bold mb-4">
+                        <i class="fa-solid fa-box-open text-gold me-2"></i>
                         Stock restant : <?php echo htmlspecialchars($menu['stock'] ?? '0'); ?> commandes
                     </div>
+
                     <a href="commande.php?id_menu=<?php echo $menu['id_menu']; ?>" class="btn-primary w-100 d-block text-center text-decoration-none">
                         Commander ce menu
                     </a>
@@ -82,23 +85,24 @@ include 'includes/header.php';
             </div>
         </div>
 
-        <h2 style="font-size: 2rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;" class="logo-font text-white">
+        <h2 class="logo-font text-white border-bottom border-secondary pb-2 mb-4">
             Composition du Menu
         </h2>
+
         <ul class="dish-list p-0 mb-5">
             <?php foreach($platsDuMenu as $plat): ?>
-            <li class="dish-item d-flex justify-content-between align-items-center p-3" style="border-bottom: 1px solid var(--glass-border);">
+            <li class="dish-item">
                 <div>
-                    <div class="dish-type" style="color: var(--gold-primary); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;">
+                    <div class="dish-type">
                         <?php echo htmlspecialchars($plat['categorie'] ?? ''); ?>
                     </div>
-                    <div style="font-size:1.1rem; font-weight:500; margin-top:0.3rem;" class="text-white">
+                    <div class="text-white fw-bold mt-1" style="font-size:1.1rem;">
                         <?php echo htmlspecialchars($plat['nom'] ?? ''); ?>
                     </div>
                 </div>
 
                 <?php if(!empty($plat['allergenes'])): ?>
-                <div class="allergens" title="Allergènes" style="font-size: 0.8rem; color: var(--danger); background: rgba(239, 68, 68, 0.1); padding: 0.2rem 0.5rem; border-radius: 4px;">
+                <div class="allergens" title="Allergènes">
                     <i class="fa-solid fa-triangle-exclamation"></i> <?php echo htmlspecialchars($plat['allergenes']); ?>
                 </div>
                 <?php endif; ?>
@@ -112,7 +116,7 @@ include 'includes/header.php';
 
         <?php if(!empty($menu['conditions'])): ?>
         <div class="conditions-alert">
-            <h4 style="color:var(--gold-primary); margin-bottom:0.5rem;">
+            <h4 class="text-gold mb-2">
                 <i class="fa-solid fa-circle-info"></i> Conditions Spécifiques
             </h4>
             <p class="mb-0"><?php echo nl2br(htmlspecialchars($menu['conditions'])); ?></p>
@@ -120,7 +124,7 @@ include 'includes/header.php';
         <?php endif; ?>
 
         <div class="mt-4">
-            <a href="menus.php" class="btn-outline d-inline-block text-center text-decoration-none" style="width:auto; padding: 10px 20px;">
+            <a href="menus.php" class="btn-outline d-inline-block text-decoration-none">
                 <i class="fa-solid fa-arrow-left me-2"></i> Retour aux menus
             </a>
         </div>
