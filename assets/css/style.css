@@ -421,6 +421,76 @@ a {
   padding: 2rem;
 }
 
+/* Connexion, Inscription */
+.form-container {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.form-container-large {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.form-label {
+  color: var(--gold-primary);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--glass-border);
+  color: #ffffff;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  transition: border-color 0.3s ease;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--gold-primary);
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* Message d'erreur */
+.alert-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--danger);
+  margin-bottom: 1.5rem;
+}
+
+/* Message de succès */
+.alert-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--success);
+  margin-bottom: 1.5rem;
+}
+
+/* déconnexion */
+.text-danger {
+  color: #ef4444;
+  /* Un beau rouge moderne */
+  font-size: 1.2rem;
+  transition: transform 0.3s ease;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.text-danger:hover {
+  color: #f87171;
+  transform: scale(1.1);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .nav-links,
