@@ -752,3 +752,31 @@ a {
     font-size: 2.5rem;
   }
 }
+/* commmande */
+.order-summary {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--gold-primary);
+  border-radius: 12px;
+  padding: 2rem;
+  position: sticky;
+  top: 100px;
+}
+
+.summary-line {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.summary-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--glass-border);
+  color: var(--gold-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
