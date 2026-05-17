@@ -1,4 +1,5 @@
 <?php
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -34,9 +35,18 @@ if (session_status() === PHP_SESSION_NONE) {
         <div class="nav-actions" style="display: flex; align-items: center; gap: 1rem;">
           <?php if(isset($_SESSION['user_id'])): ?>
 
-              <a href="espace_utilisateur.php" class="btn-login" style="text-decoration: none;">
-                  <i class="fa-solid fa-user"></i> <?php echo htmlspecialchars($_SESSION['prenom']); ?>
-              </a>
+              <?php
+              // Si c'est un employé ou un admin, on l'envoie vers l'espace pro
+              if (isset($_SESSION['role']) && ($_SESSION['role'] === 'employe' || $_SESSION['role'] === 'admin')):
+              ?>
+                  <a href="espace_employe.php" class="btn-login" style="text-decoration: none; color: #f59e0b;">
+                      <i class="fa-solid fa-user-tie"></i> Espace Pro (<?php echo htmlspecialchars($_SESSION['prenom']); ?>)
+                  </a>
+              <?php else: ?>
+                  <a href="espace_utilisateur.php" class="btn-login" style="text-decoration: none;">
+                      <i class="fa-solid fa-user"></i> <?php echo htmlspecialchars($_SESSION['prenom']); ?>
+                  </a>
+              <?php endif; ?>
               <a href="logout.php" class="text-danger" title="Se déconnecter" style="font-size: 1.3rem; text-decoration: none;">
                   <i class="fa-solid fa-power-off"></i>
               </a>
