@@ -34,31 +34,34 @@ if (session_status() === PHP_SESSION_NONE) {
 
         <div class="nav-actions" style="display: flex; align-items: center; gap: 1rem;">
           <?php if(isset($_SESSION['user_id'])): ?>
+            <?php if ($_SESSION['role'] === 'admin'): ?>
+                <a href="espace_admin.php" class="btn-login" style="text-decoration: none; color: #f59e0b;">
+                    <i class="fa-solid fa-crown"></i> Admin (<?php echo htmlspecialchars($_SESSION['prenom']); ?>)
+                </a>
 
-              <?php
-              // Si c'est un employé ou un admin, on l'envoie vers l'espace pro
-              if (isset($_SESSION['role']) && ($_SESSION['role'] === 'employe' || $_SESSION['role'] === 'admin')):
-              ?>
-                  <a href="espace_employe.php" class="btn-login" style="text-decoration: none; color: #f59e0b;">
-                      <i class="fa-solid fa-user-tie"></i> Espace Pro (<?php echo htmlspecialchars($_SESSION['prenom']); ?>)
-                  </a>
-              <?php else: ?>
-                  <a href="espace_utilisateur.php" class="btn-login" style="text-decoration: none;">
-                      <i class="fa-solid fa-user"></i> <?php echo htmlspecialchars($_SESSION['prenom']); ?>
-                  </a>
-              <?php endif; ?>
-              <a href="logout.php" class="text-danger" title="Se déconnecter" style="font-size: 1.3rem; text-decoration: none;">
-                  <i class="fa-solid fa-power-off"></i>
-              </a>
+            <?php elseif ($_SESSION['role'] === 'employe'): ?>
+                <a href="espace_employe.php" class="btn-login" style="text-decoration: none; color: #f59e0b;">
+                    <i class="fa-solid fa-user-tie"></i> Espace Pro (<?php echo htmlspecialchars($_SESSION['prenom']); ?>)
+                </a>
 
-          <?php else: ?>
+            <?php else: ?>
+                <a href="espace_utilisateur.php" class="btn-login" style="text-decoration: none;">
+                    <i class="fa-solid fa-user"></i> <?php echo htmlspecialchars($_SESSION['prenom']); ?>
+                </a>
+            <?php endif; ?>
 
-              <a href="login.php" class="btn-login" style="text-decoration: none;">
-                  <i class="fa-regular fa-user"></i> Connexion
-              </a>
+            <a href="logout.php" class="text-danger" title="Se déconnecter" style="font-size: 1.3rem; text-decoration: none;">
+                <i class="fa-solid fa-power-off"></i>
+            </a>
 
-          <?php endif; ?>
-        </div>
+        <?php else: ?>
+
+            <a href="login.php" class="btn-login" style="text-decoration: none;">
+                <i class="fa-regular fa-user"></i> Connexion
+            </a>
+
+        <?php endif; ?>
+                </div>
 
         <button class="mobile-menu-btn"><i class="fa-solid fa-bars"></i></button>
       </div>
