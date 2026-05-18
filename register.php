@@ -12,11 +12,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $adresse_postale = $_POST['adresse_postale'];
     $password_clair = $_POST['mot_de_passe'];
 
-    // verification du mot de passe
-    $regex = '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{10,}$/';
+    // verification du domaine de l'email
+    $domaine_email = substr(strrchr($email, "@"), 1);
 
-    if (!preg_match($regex, $password_clair)) {
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !checkdnsrr($domaine_email, "MX")) {
+        $message = "<div class='alert-error'>L'adresse email fournie semble invalide ou appartient à un domaine inexistant (ex: @test.com).</div>";
+
+    // On vérifie les critères si l'email est bon
+    } elseif (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{10,}$/', $password_clair)) {
         $message = "<div class='alert-error'>Le mot de passe ne respecte pas les critères de sécurité (10 caractères min, 1 majuscule, 1 minuscule, 1 chiffre, 1 caractère spécial).</div>";
+
     } else {
         // Hachage du mot de passe
         $hash = password_hash($password_clair, PASSWORD_DEFAULT);

@@ -892,3 +892,63 @@ textarea.form-control {
   text-decoration: none;
   display: inline-block;
 }
+/*Responsive: menu burger */
+@media (max-width: 768px) {
+  .nav-container {
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    flex: 1;
+    order: 1;
+  }
+
+  .mobile-menu-btn {
+    display: block;
+    background: none;
+    border: none;
+    color: #f59e0b;
+    font-size: 1.8rem;
+    cursor: pointer;
+    order: 2;
+  }
+
+  .nav-links,
+  .nav-actions {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    text-align: center;
+    background-color: #111;
+  }
+
+  /* les liens se placent en premier sous le logo */
+  .nav-links {
+    order: 3;
+    padding-top: 1rem;
+  }
+
+  /*profil/déconnexion */
+  .nav-actions {
+    order: 4;
+    padding-bottom: 1.5rem;
+    gap: 1rem;
+  }
+
+  /* L'activation via JavaScript */
+  .nav-links.active,
+  .nav-actions.active {
+    display: flex;
+  }
+
+  .nav-links li {
+    margin: 10px 0;
+  }
+}
+
+/* Sur les grands écrans, on cache le bouton burger ! */
+@media (min-width: 769px) {
+  .mobile-menu-btn {
+    display: none;
+  }
+}

@@ -47,5 +47,20 @@
       </div>
     </footer>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const btnBurger = document.querySelector('.mobile-menu-btn');
+      const navLinks = document.querySelector('.nav-links');
+      const navActions = document.querySelector('.nav-actions');
+
+      if(btnBurger && navLinks) {
+          btnBurger.addEventListener('click', () => {
+              navLinks.classList.toggle('active');
+              if(navActions) navActions.classList.toggle('active');
+          });
+      }
+    });
+  </script>
 </body>
 </html>
