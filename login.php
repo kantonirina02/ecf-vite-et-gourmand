@@ -54,7 +54,7 @@ include 'includes/header.php';
         </form>
 
         <div class="text-center mt-4 pt-3 border-top border-secondary">
-            <p class="text-muted mb-2">Mot de passe oublié ? <a href="#" class="text-gold text-decoration-none">Réinitialiser</a></p>
+            <p class="text-muted mb-2">Mot de passe oublié ? <a href="mot_de_passe_oublie.php" class="text-gold text-decoration-none">Réinitialiser</a></p>
             <p class="text-muted">Pas encore de compte ? <a href="register.php" class="text-gold text-decoration-none">S'inscrire</a></p>
         </div>
     </div>
