@@ -4,7 +4,7 @@ require_once 'includes/db.php';
 
 // Sécurité: uniquement les admin
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
-    header('Location: index.php');
+    header('Location: /');
     exit;
 }
 
@@ -69,7 +69,7 @@ include 'includes/header.php';
 <div class="container py-5 mt-5">
     <div class="d-flex justify-content-between align-items-center mb-5 border-bottom border-warning pb-3">
         <h2 class="logo-font text-gold m-0">Espace Administrateur</h2>
-        <a href="espace_employe.php" class="btn-outline border-warning text-warning" style="padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none;">
+        <a href="espace_employe" class="btn-outline border-warning text-warning" style="padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none;">
             <i class="fa-solid fa-arrow-right"></i> Aller au panel Employé
         </a>
     </div>

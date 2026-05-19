@@ -3,7 +3,7 @@ require_once 'includes/db.php';
 
 // Récupération et sécurité de l'ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
-    header('Location: menus.php');
+    header('Location: menus');
     exit;
 }
 $id_menu = (int) $_GET['id'];
@@ -14,7 +14,7 @@ $requete->execute(['id' => $id_menu]);
 $menu = $requete->fetch(PDO::FETCH_ASSOC);
 
 if (!$menu) {
-    header('Location: menus.php');
+    header('Location: menus');
     exit;
 }
 
@@ -78,7 +78,7 @@ include 'includes/header.php';
                         Stock restant : <?php echo htmlspecialchars($menu['stock'] ?? '0'); ?> commandes
                     </div>
 
-                    <a href="commande.php?id_menu=<?php echo $menu['id_menu']; ?>" class="btn-primary w-100 d-block text-center text-decoration-none">
+                    <a href="commande?id_menu=<?php echo $menu['id_menu']; ?>" class="btn-primary w-100 d-block text-center text-decoration-none">
                         Commander ce menu
                     </a>
                 </div>
@@ -124,7 +124,7 @@ include 'includes/header.php';
         <?php endif; ?>
 
         <div class="mt-4">
-            <a href="menus.php" class="btn-outline d-inline-block text-decoration-none">
+            <a href="menus" class="btn-outline d-inline-block text-decoration-none">
                 <i class="fa-solid fa-arrow-left me-2"></i> Retour aux menus
             </a>
         </div>

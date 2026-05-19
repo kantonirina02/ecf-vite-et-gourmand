@@ -4,13 +4,13 @@ require_once 'includes/db.php';
 
 // Si non connecté, redirection vers login
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php?erreur=connexion_requise');
+    header('Location: login?erreur=connexion_requise');
     exit;
 }
 
 // verrification du menu
 if (!isset($_GET['id_menu']) || empty($_GET['id_menu'])) {
-    header('Location: menus.php');
+    header('Location: menus');
     exit;
 }
 
@@ -22,7 +22,7 @@ $req_menu->execute([$id_menu]);
 $menu = $req_menu->fetch(PDO::FETCH_ASSOC);
 
 if (!$menu) {
-    header('Location: menus.php');
+    header('Location: menus');
     exit;
 }
 

@@ -6,7 +6,7 @@ include 'includes/header.php'; ?>
   <div class="hero-content">
     <h1>Vite & <span class="highlight">Gourmand</span></h1>
     <p>L'art de la gastronomie pour vos événements. Sublimez vos moments précieux avec nos créations culinaires d'exception depuis plus de 25 ans.</p>
-    <a href="menus.php" class="btn-primary" style="text-decoration:none;">Découvrir la Carte</a>
+    <a href="menus" class="btn-primary" style="text-decoration:none;">Découvrir la Carte</a>
   </div>
 </section>
 

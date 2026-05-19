@@ -37,8 +37,8 @@
         <div class="footer-section links">
           <h3><i class="fa-solid fa-link"></i> Liens Utiles</h3>
           <ul>
-            <li><a href="mentions.php">Mentions Légales</a></li>
-            <li><a href="cgv.php">Conditions Générales de Vente</a></li>
+            <li><a href="mentions">Mentions Légales</a></li>
+            <li><a href="cgv">Conditions Générales de Vente</a></li>
           </ul>
         </div>
       </div>

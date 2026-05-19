@@ -3,7 +3,7 @@ session_start();
 require_once 'includes/db.php';
 
 if (isset($_SESSION['user_id'])) {
-    header('Location: index.php');
+    header('Location: /');
     exit;
 }
 
@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['role'] = $user['role'];
         $_SESSION['prenom'] = $user['prenom'];
 
-        header('Location: index.php');
+        header('Location: /');
         exit;
     } else {
         $message = "<div class='alert-error'>Identifiants incorrects.</div>";
@@ -54,8 +54,8 @@ include 'includes/header.php';
         </form>
 
         <div class="text-center mt-4 pt-3 border-top border-secondary">
-            <p class="text-muted mb-2">Mot de passe oublié ? <a href="mot_de_passe_oublie.php" class="text-gold text-decoration-none">Réinitialiser</a></p>
-            <p class="text-muted">Pas encore de compte ? <a href="register.php" class="text-gold text-decoration-none">S'inscrire</a></p>
+            <p class="text-muted mb-2">Mot de passe oublié ? <a href="mot_de_passe_oublie" class="text-gold text-decoration-none">Réinitialiser</a></p>
+            <p class="text-muted">Pas encore de compte ? <a href="register" class="text-gold text-decoration-none">S'inscrire</a></p>
         </div>
     </div>
 </div>

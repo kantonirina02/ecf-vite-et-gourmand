@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insert->execute([$nom, $prenom, $email, $gsm, $adresse_postale, $hash]);
 
             // Redirection vers la page de connexion avec un message de succès
-            header('Location: login.php?inscription=success');
+            header('Location: login?inscription=success');
             exit;
 
         } catch (PDOException $e) {
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
 
         <div class="text-center mt-4 pt-3 border-top border-secondary">
-            <p class="text-muted">Déjà un compte ? <a href="login.php" class="text-gold text-decoration-none">Connectez-vous</a></p>
+            <p class="text-muted">Déjà un compte ? <a href="login" class="text-gold text-decoration-none">Connectez-vous</a></p>
         </div>
     </div>
 </div>

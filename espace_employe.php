@@ -4,7 +4,7 @@ require_once 'includes/db.php';
 
 // verification du rôle emplye/admin
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'employe' && $_SESSION['role'] !== 'admin')) {
-    header('Location: index.php');
+    header('Location: /');
     exit;
 }
 

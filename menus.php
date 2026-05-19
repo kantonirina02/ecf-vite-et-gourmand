@@ -105,7 +105,7 @@ function updateMenus() {
           <span><i class="fa-solid fa-users"></i> Min. ${m.nb_personnes_min}</span>
           <span class="menu-price">${m.prix_min}€ / pers.</span>
         </div>
-        <a href="menu_detail.php?id=${m.id_menu}" class="btn-outline" style="text-align:center; display:block;">Découvrir le Menu</a>
+        <a href="menu_detail?id=${m.id_menu}" class="btn-outline" style="text-align:center; display:block;">Découvrir le Menu</a>
       </div>
     </div>
   `).join('');

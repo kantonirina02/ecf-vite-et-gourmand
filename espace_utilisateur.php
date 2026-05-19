@@ -4,7 +4,7 @@ require_once 'includes/db.php';
 
 // Vérifier si l'utilisateur est connecté
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: login');
     exit;
 }
 
@@ -159,7 +159,7 @@ include 'includes/header.php';
                                     </td>
                                     <td>
                                         <?php if($statut_clean === 'en attente'): ?>
-                                            <a href="espace_utilisateur.php?annuler_commande=<?php echo $cmd['id_commande']; ?>"
+                                            <a href="espace_utilisateur?annuler_commande=<?php echo $cmd['id_commande']; ?>"
                                                class="btn-action-small btn-outline text-danger border-danger"
                                                onclick="return confirm('Êtes-vous sûr de vouloir annuler cette commande ?');">
                                                 Annuler

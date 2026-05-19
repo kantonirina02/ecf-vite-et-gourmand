@@ -6,7 +6,7 @@ $message = "";
 
 // récuperation et décode l'email caché dans le lien
 if (!isset($_GET['token'])) {
-    header('Location: index.php');
+    header('Location: /');
     exit;
 }
 
@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // mise à jour dans la base de données
         $update = $pdo->prepare("UPDATE utilisateur SET mot_de_passe = ? WHERE email = ?");
         if ($update->execute([$hash, $email_decode])) {
-            $message = "<div class='alert-success mb-4'>Votre mot de passe a été mis à jour avec succès ! <br><a href='login.php' class='fw-bold text-success'>Cliquez ici pour vous connecter</a></div>";
+            $message = "<div class='alert-success mb-4'>Votre mot de passe a été mis à jour avec succès ! <br><a href='login' class='fw-bold text-success'>Cliquez ici pour vous connecter</a></div>";
         }
     }
 }
