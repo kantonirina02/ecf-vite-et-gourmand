@@ -37,11 +37,19 @@ $req_plats = $pdo->prepare("
 $req_plats->execute(['id' => $id_menu]);
 $platsDuMenu = $req_plats->fetchAll(PDO::FETCH_ASSOC);
 
+$req_images = $pdo->prepare("SELECT chemin FROM menu_image WHERE id_menu = ? ORDER BY id_image ASC");
+$req_images->execute([$id_menu]);
+$imagesMenu = array_column($req_images->fetchAll(PDO::FETCH_ASSOC), 'chemin');
+
+if (empty($imagesMenu) && !empty($menu['image'])) {
+    $imagesMenu = [$menu['image']];
+}
+
 include 'includes/header.php';
 ?>
 
 <div class="menu-detail-header">
-    <img src="assets/images/<?php echo htmlspecialchars($menu['image'] ?? 'default.jpg'); ?>" alt="<?php echo htmlspecialchars($menu['titre'] ?? 'Menu'); ?>" class="menu-detail-img">
+    <img src="assets/images/<?php echo htmlspecialchars(basename($menu['image'] ?? 'default.jpg')); ?>" alt="<?php echo htmlspecialchars($menu['titre'] ?? 'Menu'); ?>" class="menu-detail-img">
     <h1 class="menu-detail-title logo-font"><?php echo htmlspecialchars($menu['titre'] ?? ''); ?></h1>
 </div>
 
@@ -78,9 +86,15 @@ include 'includes/header.php';
                         Stock restant : <?php echo htmlspecialchars($menu['stock'] ?? '0'); ?> commandes
                     </div>
 
-                    <a href="commande?id_menu=<?php echo $menu['id_menu']; ?>" class="btn-primary w-100 d-block text-center text-decoration-none">
-                        Commander ce menu
-                    </a>
+                    <?php if((int)($menu['stock'] ?? 0) > 0): ?>
+                        <a href="commande?id_menu=<?php echo (int)$menu['id_menu']; ?>" class="btn-primary w-100 d-block text-center text-decoration-none">
+                            Commander ce menu
+                        </a>
+                    <?php else: ?>
+                        <button class="btn-primary w-100 border-0" type="button" disabled style="opacity:.55; cursor:not-allowed;">
+                            Stock indisponible
+                        </button>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -88,6 +102,14 @@ include 'includes/header.php';
         <h2 class="logo-font text-white border-bottom border-secondary pb-2 mb-4">
             Composition du Menu
         </h2>
+
+        <?php if(!empty($imagesMenu)): ?>
+        <div class="menu-gallery mb-5" aria-label="Galerie du menu">
+            <?php foreach($imagesMenu as $image): ?>
+                <img src="assets/images/<?php echo htmlspecialchars(basename($image)); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - image du menu'); ?>">
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
 
         <ul class="dish-list p-0 mb-5">
             <?php foreach($platsDuMenu as $plat): ?>

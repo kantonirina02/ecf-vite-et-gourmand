@@ -1,4 +1,12 @@
 <?php
+$requestPath = trim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/');
+$route = basename($requestPath);
+
+if ($route !== '' && $route !== 'index' && !str_contains($route, '.') && is_file(__DIR__ . '/' . $route . '.php')) {
+    require __DIR__ . '/' . $route . '.php';
+    exit;
+}
+
 require_once 'includes/db.php';
 include 'includes/header.php'; ?>
 

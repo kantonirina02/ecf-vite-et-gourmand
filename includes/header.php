@@ -1,8 +1,5 @@
 <?php
-
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/security.php';
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -18,7 +15,8 @@ if (session_status() === PHP_SESSION_NONE) {
 </head>
 <body>
   <div id="app">
-    <nav class="navbar">
+    <a class="skip-link" href="#main-content">Aller au contenu principal</a>
+    <nav class="navbar" aria-label="Navigation principale">
       <div class="nav-container">
         <div class="logo">
           <a href="index">
@@ -26,13 +24,13 @@ if (session_status() === PHP_SESSION_NONE) {
           </a>
         </div>
 
-        <ul class="nav-links">
+        <ul class="nav-links" id="navigation-links">
           <li><a href="index"><i class="fa-solid fa-house"></i> Accueil</a></li>
           <li><a href="menus"><i class="fa-solid fa-utensils"></i> Nos Menus</a></li>
           <li><a href="contact"><i class="fa-solid fa-envelope"></i> Contact</a></li>
         </ul>
 
-        <div class="nav-actions" style="display: flex; align-items: center; gap: 1rem;">
+        <div class="nav-actions">
           <?php if(isset($_SESSION['user_id'])): ?>
             <?php if ($_SESSION['role'] === 'admin'): ?>
                 <a href="espace_admin" class="btn-login" style="text-decoration: none; color: #f59e0b;">
@@ -63,7 +61,9 @@ if (session_status() === PHP_SESSION_NONE) {
         <?php endif; ?>
                 </div>
 
-        <button class="mobile-menu-btn"><i class="fa-solid fa-bars"></i></button>
+        <button class="mobile-menu-btn" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="navigation-links">
+          <i class="fa-solid fa-bars" aria-hidden="true"></i>
+        </button>
       </div>
     </nav>
     <main id="main-content">

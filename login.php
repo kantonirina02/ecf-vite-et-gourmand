@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once 'includes/security.php';
 require_once 'includes/db.php';
 
 if (isset($_SESSION['user_id'])) {
@@ -9,27 +9,39 @@ if (isset($_SESSION['user_id'])) {
 
 $message = "";
 
-// Affichage d'un message de succès après inscription
 if (isset($_GET['inscription']) && $_GET['inscription'] === 'success') {
-    $message = "<div class='alert-success mb-4'>Inscription réussie ! Vous pouvez maintenant vous connecter.</div>";
+    $message = "<div class='alert-success mb-4'>Inscription réussie. Vous pouvez maintenant vous connecter.</div>";
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = $_POST['email'];
-    $password_clair = $_POST['mot_de_passe'];
+    verify_csrf();
 
-    $requete = $pdo->prepare("SELECT * FROM utilisateur WHERE email = ?");
-    $requete->execute([$email]);
-    $user = $requete->fetch(PDO::FETCH_ASSOC);
+    $email = trim($_POST['email'] ?? '');
+    $password_clair = $_POST['mot_de_passe'] ?? '';
 
-    if ($user && password_verify($password_clair, $user['mot_de_passe'])) {
-        $_SESSION['user_id'] = $user['id_utilisateur'];
-        $_SESSION['role'] = $user['role'];
-        $_SESSION['prenom'] = $user['prenom'];
-
-        header('Location: /');
-        exit;
+    if (login_is_blocked($pdo, $email)) {
+        $message = "<div class='alert-error'>Trop de tentatives. Réessayez dans quelques minutes.</div>";
     } else {
+        $requete = $pdo->prepare("SELECT * FROM utilisateur WHERE email = ?");
+        $requete->execute([$email]);
+        $user = $requete->fetch(PDO::FETCH_ASSOC);
+
+        if (
+            $user
+            && password_verify($password_clair, $user['mot_de_passe'])
+            && ($user['role'] !== 'employe' || ($user['statut_compte'] ?? 'actif') === 'actif')
+        ) {
+            session_regenerate_id(true);
+            clear_login_attempts($pdo, $email);
+            $_SESSION['user_id'] = $user['id_utilisateur'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['prenom'] = $user['prenom'];
+
+            header('Location: /');
+            exit;
+        }
+
+        record_login_failure($pdo, $email);
         $message = "<div class='alert-error'>Identifiants incorrects.</div>";
     }
 }
@@ -44,11 +56,12 @@ include 'includes/header.php';
         <?php if(!empty($message)) echo $message; ?>
 
         <form method="POST" action="">
-            <label class="form-label">Adresse Email</label>
-            <input type="email" name="email" class="form-control" required>
+            <?php echo csrf_field(); ?>
+            <label class="form-label" for="email">Adresse Email</label>
+            <input id="email" type="email" name="email" class="form-control" autocomplete="email" required>
 
-            <label class="form-label">Mot de passe</label>
-            <input type="password" name="mot_de_passe" class="form-control" required>
+            <label class="form-label" for="mot_de_passe">Mot de passe</label>
+            <input id="mot_de_passe" type="password" name="mot_de_passe" class="form-control" autocomplete="current-password" required>
 
             <button type="submit" class="btn-primary w-100 border-0 mt-2">Se connecter</button>
         </form>

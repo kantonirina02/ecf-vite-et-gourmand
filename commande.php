@@ -1,22 +1,23 @@
 <?php
-session_start();
+require_once 'includes/security.php';
 require_once 'includes/db.php';
+require_once 'includes/mailer.php';
+require_once 'includes/order_history.php';
+require_once 'includes/order_status.php';
+require_once 'includes/nosql_stats.php';
 
-// Si non connecté, redirection vers login
 if (!isset($_SESSION['user_id'])) {
     header('Location: login?erreur=connexion_requise');
     exit;
 }
 
-// verrification du menu
-if (!isset($_GET['id_menu']) || empty($_GET['id_menu'])) {
+if (empty($_GET['id_menu'])) {
     header('Location: menus');
     exit;
 }
 
 $id_menu = (int) $_GET['id_menu'];
 
-// Récupération des Menus
 $req_menu = $pdo->prepare("SELECT * FROM menu WHERE id_menu = ?");
 $req_menu->execute([$id_menu]);
 $menu = $req_menu->fetch(PDO::FETCH_ASSOC);
@@ -26,48 +27,79 @@ if (!$menu) {
     exit;
 }
 
-// Récupération des infos de l'Utilisateur pour le pré-remplissage
 $req_user = $pdo->prepare("SELECT * FROM utilisateur WHERE id_utilisateur = ?");
 $req_user->execute([$_SESSION['user_id']]);
 $user = $req_user->fetch(PDO::FETCH_ASSOC);
 
+if (!$user) {
+    header('Location: logout');
+    exit;
+}
+
 $message = "";
+$date_min_prestation = date('Y-m-d', strtotime('+3 days'));
 
-// traitement du formulaire de commande
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $date_prestation = $_POST['date_prestation'];
-    $heure_prestation = $_POST['heure_prestation'];
-    $lieu_prestation = trim($_POST['lieu_prestation']);
-    $nb_personnes = (int) $_POST['nb_personnes'];
-    $est_hors_bordeaux = isset($_POST['hors_bordeaux']) ? true : false;
-    $distance_km = $est_hors_bordeaux ? (float) $_POST['distance_km'] : 0;
+    verify_csrf();
 
-    // Vérification de la règle de gestion : Minimum de personnes
-    if ($nb_personnes < $menu['nb_personnes_min']) {
-        $message = "<div class='alert-error'>Erreur : Le minimum pour ce menu est de {$menu['nb_personnes_min']} personnes.</div>";
+    $date_prestation = $_POST['date_prestation'] ?? '';
+    $heure_prestation = $_POST['heure_prestation'] ?? '';
+    $lieu_prestation = trim($_POST['lieu_prestation'] ?? '');
+    $nb_personnes = (int) ($_POST['nb_personnes'] ?? 0);
+    $est_hors_bordeaux = isset($_POST['hors_bordeaux']);
+    $distance_km = $est_hors_bordeaux ? (float) ($_POST['distance_km'] ?? 0) : 0;
+    $adresse_semble_bordeaux = stripos($lieu_prestation, 'bordeaux') !== false;
+
+    if (!is_valid_date_string($date_prestation) || $date_prestation < $date_min_prestation) {
+        $message = "<div class='alert-error'>La date de prestation doit être au minimum dans 3 jours.</div>";
+    } elseif (!preg_match('/^\d{2}:\d{2}$/', $heure_prestation)) {
+        $message = "<div class='alert-error'>L'heure de livraison est invalide.</div>";
+    } elseif ($lieu_prestation === '' || mb_strlen($lieu_prestation, 'UTF-8') > 500) {
+        $message = "<div class='alert-error'>L'adresse de livraison est obligatoire et doit rester lisible.</div>";
+    } elseif (!$est_hors_bordeaux && !$adresse_semble_bordeaux) {
+        $message = "<div class='alert-error'>Cette adresse ne semble pas être à Bordeaux. Cochez la livraison hors Bordeaux et indiquez la distance.</div>";
+    } elseif ($est_hors_bordeaux && $distance_km <= 0) {
+        $message = "<div class='alert-error'>La distance hors Bordeaux doit être supérieure à 0 km.</div>";
     } else {
-        // calcul du prix, côté serveur
-        $prix_unitaire = $menu['prix_min'];
-        $prix_menu_total = $prix_unitaire * $nb_personnes;
-
-        // -10% si 5 personnes de plus que le minimum
-        if ($nb_personnes >= ($menu['nb_personnes_min'] + 5)) {
-            $prix_menu_total = $prix_menu_total * 0.90;
-        }
-
-        // Frais de livraison (5€ + 0.59€/km si hors Bordeaux)
-        $frais_livraison = 0;
-        if ($est_hors_bordeaux) {
-            $frais_livraison = 5 + (0.59 * $distance_km);
-        }
-
-        $prix_total_final = $prix_menu_total + $frais_livraison;
-
-        // enregistrement en base de données
         try {
+            ensure_order_history_table($pdo);
+            $pdo->beginTransaction();
+
+            $req_menu_lock = $pdo->prepare("SELECT * FROM menu WHERE id_menu = ? FOR UPDATE");
+            $req_menu_lock->execute([$id_menu]);
+            $menu_lock = $req_menu_lock->fetch(PDO::FETCH_ASSOC);
+
+            if (!$menu_lock) {
+                throw new RuntimeException('menu');
+            }
+
+            if ((int) $menu_lock['stock'] <= 0) {
+                throw new RuntimeException('stock');
+            }
+
+            if ($nb_personnes < (int) $menu_lock['nb_personnes_min']) {
+                throw new RuntimeException('minimum');
+            }
+
+            $prix_menu_total = (float) $menu_lock['prix_min'] * $nb_personnes;
+
+            if ($nb_personnes >= ((int) $menu_lock['nb_personnes_min'] + 5)) {
+                $prix_menu_total *= 0.90;
+            }
+
+            $frais_livraison = $est_hors_bordeaux ? 5 + (0.59 * $distance_km) : 0;
+            $prix_total_final = round($prix_menu_total + $frais_livraison, 2);
+
+            $update_stock = $pdo->prepare("UPDATE menu SET stock = stock - 1 WHERE id_menu = ? AND stock > 0");
+            $update_stock->execute([$id_menu]);
+
+            if ($update_stock->rowCount() !== 1) {
+                throw new RuntimeException('stock');
+            }
+
             $insert = $pdo->prepare("
                 INSERT INTO commande (date_prestation, heure_prestation, lieu_prestation, nb_personnes, prix_total, statut, id_utilisateur, id_menu)
-                VALUES (?, ?, ?, ?, ?, 'en attente', ?, ?)
+                VALUES (?, ?, ?, ?, ?, 'en_attente', ?, ?)
             ");
             $insert->execute([
                 $date_prestation,
@@ -76,14 +108,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $nb_personnes,
                 $prix_total_final,
                 $_SESSION['user_id'],
-                $id_menu
+                $id_menu,
             ]);
 
-            // Redirection vers l'espace utilisateur
-            header('Location: espace_utilisateur.php?success=commande_validee');
+            $id_commande = (int) $pdo->lastInsertId();
+            add_order_history($pdo, $id_commande, 'en_attente', 'Commande créée par le client.');
+
+            $pdo->commit();
+            nosql_sync_stats_from_sql($pdo);
+
+            $mail_body = "Bonjour " . $user['prenom'] . ",\n\n";
+            $mail_body .= "Votre commande pour le " . $date_prestation . " a bien été enregistrée.\n";
+            $mail_body .= "Menu : " . $menu_lock['titre'] . "\n";
+            $mail_body .= "Nombre de personnes : " . $nb_personnes . "\n";
+            $mail_body .= "Montant total : " . number_format($prix_total_final, 2, ',', ' ') . " EUR\n\n";
+            $mail_body .= "L'équipe Vite & Gourmand.";
+            send_app_email($user['email'], "Confirmation de votre commande - Vite & Gourmand", $mail_body);
+
+            header('Location: espace_utilisateur?success=commande_validee');
             exit;
-        } catch (PDOException $e) {
-            $message = "<div class='alert-error'>Une erreur est survenue lors de la commande.</div>";
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            if ($e->getMessage() === 'stock') {
+                $message = "<div class='alert-error'>Ce menu n'est plus disponible en stock.</div>";
+            } elseif ($e->getMessage() === 'minimum') {
+                $message = "<div class='alert-error'>Erreur : le minimum pour ce menu est de " . (int) $menu['nb_personnes_min'] . " personnes.</div>";
+            } else {
+                error_log($e->getMessage());
+                $message = "<div class='alert-error'>Une erreur est survenue lors de la commande.</div>";
+            }
         }
     }
 }
@@ -97,11 +153,12 @@ include 'includes/header.php';
     <?php if(!empty($message)) echo $message; ?>
 
     <form method="POST" action="" id="formCommande">
+        <?php echo csrf_field(); ?>
         <div class="row g-5">
 
             <div class="col-lg-7">
                 <div class="glass-panel p-4 mb-4">
-                    <h4 class="text-gold mb-4 border-bottom border-secondary pb-2">1. Vos informations (Pré-remplies)</h4>
+                    <h4 class="text-gold mb-4 border-bottom border-secondary pb-2">1. Vos informations pré-remplies</h4>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Nom</label>
@@ -129,26 +186,26 @@ include 'includes/header.php';
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Date souhaitée</label>
-                            <input type="date" name="date_prestation" class="form-control" required min="<?php echo date('Y-m-d', strtotime('+3 days')); ?>">
+                            <label class="form-label" for="date_prestation">Date souhaitée</label>
+                            <input id="date_prestation" type="date" name="date_prestation" class="form-control" required min="<?php echo $date_min_prestation; ?>">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Heure de livraison</label>
-                            <input type="time" name="heure_prestation" class="form-control" required>
+                            <label class="form-label" for="heure_prestation">Heure de livraison</label>
+                            <input id="heure_prestation" type="time" name="heure_prestation" class="form-control" required>
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Nombre de convives</label>
+                        <label class="form-label" for="inputPersonnes">Nombre de convives</label>
                         <input type="number" name="nb_personnes" id="inputPersonnes" class="form-control"
-                               min="<?php echo $menu['nb_personnes_min']; ?>"
-                               value="<?php echo $menu['nb_personnes_min']; ?>" required>
-                        <small class="text-success"><i class="fa-solid fa-tags"></i> Astuce : -10% appliqués si vous commandez pour <?php echo $menu['nb_personnes_min'] + 5; ?> personnes ou plus !</small>
+                               min="<?php echo (int)$menu['nb_personnes_min']; ?>"
+                               value="<?php echo (int)$menu['nb_personnes_min']; ?>" required>
+                        <small class="text-success"><i class="fa-solid fa-tags"></i> -10% appliqués à partir de <?php echo (int)$menu['nb_personnes_min'] + 5; ?> personnes.</small>
                     </div>
 
                     <div class="mb-3 mt-4">
-                        <label class="form-label">Adresse de livraison complète</label>
-                        <textarea name="lieu_prestation" class="form-control" required><?php echo htmlspecialchars($user['adresse_postale']); ?></textarea>
+                        <label class="form-label" for="lieu_prestation">Adresse de livraison complète</label>
+                        <textarea id="lieu_prestation" name="lieu_prestation" class="form-control" required><?php echo htmlspecialchars($user['adresse_postale']); ?></textarea>
                     </div>
 
                     <div class="mb-3 form-check mt-3">
@@ -157,9 +214,9 @@ include 'includes/header.php';
                     </div>
 
                     <div class="mb-3" id="divDistance" style="display: none;">
-                        <label class="form-label text-warning"><i class="fa-solid fa-truck"></i> Distance depuis Bordeaux (en kilomètres)</label>
+                        <label class="form-label text-warning" for="inputDistance"><i class="fa-solid fa-truck"></i> Distance depuis Bordeaux en kilomètres</label>
                         <input type="number" step="0.1" min="0" name="distance_km" id="inputDistance" class="form-control border-warning" value="0">
-                        <small class="text-muted">Facturation : 5€ de base + 0.59€ par km</small>
+                        <small class="text-muted">Facturation : 5 EUR de base + 0.59 EUR par km</small>
                     </div>
                 </div>
             </div>
@@ -170,27 +227,27 @@ include 'includes/header.php';
 
                     <div class="mb-4 pb-3 border-bottom border-secondary">
                         <h5 class="text-gold"><?php echo htmlspecialchars($menu['titre']); ?></h5>
-                        <small class="text-muted">Prix unitaire : <?php echo $menu['prix_min']; ?>€</small>
+                        <small class="text-muted">Prix unitaire : <?php echo number_format((float)$menu['prix_min'], 2, ',', ' '); ?> EUR</small>
                     </div>
 
                     <div class="summary-line">
                         <span>Menus (<span id="recapNb">X</span> pers.)</span>
-                        <span id="recapMenuPrix">0.00€</span>
+                        <span id="recapMenuPrix">0.00 EUR</span>
                     </div>
 
                     <div class="summary-line text-success" id="divReduction" style="display:none;">
                         <span>Réduction de groupe (-10%)</span>
-                        <span id="recapReduction">-0.00€</span>
+                        <span id="recapReduction">-0.00 EUR</span>
                     </div>
 
                     <div class="summary-line text-warning" id="divLivraison" style="display:none;">
-                        <span>Frais de livraison (Hors Bdx)</span>
-                        <span id="recapLivraison">+0.00€</span>
+                        <span>Frais de livraison hors Bordeaux</span>
+                        <span id="recapLivraison">+0.00 EUR</span>
                     </div>
 
                     <div class="summary-total">
                         <span>TOTAL</span>
-                        <span id="recapTotal">0.00€</span>
+                        <span id="recapTotal">0.00 EUR</span>
                     </div>
 
                     <button type="submit" class="btn-primary w-100 mt-4 border-0 py-3" style="font-size: 1.1rem;">
@@ -205,17 +262,12 @@ include 'includes/header.php';
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Variables de base issues de PHP
-    const prixUnitaire = <?php echo $menu['prix_min']; ?>;
-    const minPersonnes = <?php echo $menu['nb_personnes_min']; ?>;
-
-    // Éléments du formulaire
+    const prixUnitaire = <?php echo json_encode((float)$menu['prix_min']); ?>;
+    const minPersonnes = <?php echo json_encode((int)$menu['nb_personnes_min']); ?>;
     const inputPersonnes = document.getElementById('inputPersonnes');
     const checkHorsBordeaux = document.getElementById('checkHorsBordeaux');
     const divDistance = document.getElementById('divDistance');
     const inputDistance = document.getElementById('inputDistance');
-
-    // Éléments du récapitulatif
     const recapNb = document.getElementById('recapNb');
     const recapMenuPrix = document.getElementById('recapMenuPrix');
     const divReduction = document.getElementById('divReduction');
@@ -224,50 +276,39 @@ document.addEventListener('DOMContentLoaded', function() {
     const recapLivraison = document.getElementById('recapLivraison');
     const recapTotal = document.getElementById('recapTotal');
 
-    // Fonction de calcul
-    function calculerPrix() {
-        let nb = parseInt(inputPersonnes.value) || minPersonnes;
-        if(nb < minPersonnes) nb = minPersonnes;
+    function formatEUR(value) {
+        return value.toFixed(2) + ' EUR';
+    }
 
-        let prixMenuBase = nb * prixUnitaire;
-        let reduction = 0;
+    function calculerPrix() {
+        let nb = parseInt(inputPersonnes.value, 10) || minPersonnes;
+        if (nb < minPersonnes) nb = minPersonnes;
+
+        const prixMenuBase = nb * prixUnitaire;
+        const reduction = nb >= (minPersonnes + 5) ? prixMenuBase * 0.10 : 0;
         let livraison = 0;
 
-        // réduction de 10% si +5 personnes
-        if (nb >= (minPersonnes + 5)) {
-            reduction = prixMenuBase * 0.10;
-            divReduction.style.display = 'flex';
-        } else {
-            divReduction.style.display = 'none';
-        }
-
-        // livraison hors bordeaux
         if (checkHorsBordeaux.checked) {
             divDistance.style.display = 'block';
-            let km = parseFloat(inputDistance.value) || 0;
-            livraison = 5 + (0.59 * km);
+            const km = parseFloat(inputDistance.value) || 0;
+            livraison = km > 0 ? 5 + (0.59 * km) : 0;
             divLivraison.style.display = 'flex';
         } else {
             divDistance.style.display = 'none';
             divLivraison.style.display = 'none';
         }
 
-        // Calcul final
-        let total = prixMenuBase - reduction + livraison;
-
-        // Affichage à l'écran avec 2 chiffres après la virgule
+        divReduction.style.display = reduction > 0 ? 'flex' : 'none';
         recapNb.textContent = nb;
-        recapMenuPrix.textContent = prixMenuBase.toFixed(2) + '€';
-        recapReduction.textContent = '-' + reduction.toFixed(2) + '€';
-        recapLivraison.textContent = '+' + livraison.toFixed(2) + '€';
-        recapTotal.textContent = total.toFixed(2) + '€';
+        recapMenuPrix.textContent = formatEUR(prixMenuBase);
+        recapReduction.textContent = '-' + formatEUR(reduction);
+        recapLivraison.textContent = '+' + formatEUR(livraison);
+        recapTotal.textContent = formatEUR(prixMenuBase - reduction + livraison);
     }
 
-    // écouter chaque changement sur le formulaire
     inputPersonnes.addEventListener('input', calculerPrix);
     checkHorsBordeaux.addEventListener('change', calculerPrix);
     inputDistance.addEventListener('input', calculerPrix);
-
     calculerPrix();
 });
 </script>

@@ -1,78 +1,158 @@
 <?php
-session_start();
+require_once 'includes/security.php';
 require_once 'includes/db.php';
+require_once 'includes/order_history.php';
+require_once 'includes/order_status.php';
+require_once 'includes/nosql_stats.php';
 
-// Vérifier si l'utilisateur est connecté
 if (!isset($_SESSION['user_id'])) {
     header('Location: login');
     exit;
 }
 
-$id_user = $_SESSION['user_id'];
+$id_user = (int) $_SESSION['user_id'];
 $message = "";
+$date_min_prestation = date('Y-m-d', strtotime('+3 days'));
 
-// traitement de la mise à jour du profil
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_profil'])) {
-    $nom = trim($_POST['nom']);
-    $prenom = trim($_POST['prenom']);
-    $gsm = trim($_POST['gsm']);
-    $adresse = trim($_POST['adresse_postale']);
+    $nom = clean_text_input($_POST['nom'] ?? '', 50);
+    $prenom = clean_text_input($_POST['prenom'] ?? '', 50);
+    $gsm = clean_text_input($_POST['gsm'] ?? '', 20);
+    $adresse = trim($_POST['adresse_postale'] ?? '');
 
-    $update = $pdo->prepare("UPDATE utilisateur SET nom = ?, prenom = ?, gsm = ?, adresse_postale = ? WHERE id_utilisateur = ?");
-    if ($update->execute([$nom, $prenom, $gsm, $adresse, $id_user])) {
-        $_SESSION['prenom'] = $prenom; // On met à jour le prénom dans le header
-        $message = "<div class='alert-success'>Profil mis à jour avec succès !</div>";
+    if ($nom === '' || $prenom === '' || !is_valid_phone($gsm) || $adresse === '') {
+        $message = "<div class='alert-error'>Vérifiez votre nom, prénom, téléphone et adresse.</div>";
     } else {
-        $message = "<div class='alert-error'>Erreur lors de la mise à jour du profil.</div>";
+        $update = $pdo->prepare("UPDATE utilisateur SET nom = ?, prenom = ?, gsm = ?, adresse_postale = ? WHERE id_utilisateur = ?");
+        if ($update->execute([$nom, $prenom, $gsm, $adresse, $id_user])) {
+            $_SESSION['prenom'] = $prenom;
+            $message = "<div class='alert-success'>Profil mis à jour avec succès.</div>";
+        }
     }
 }
 
-// annulation de la commande
-// uniquement si le statut est envore en attente
-if (isset($_GET['annuler_commande'])) {
-    $id_cmd_annuler = (int)$_GET['annuler_commande'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['annuler_commande'])) {
+    $idCmd = (int) $_POST['annuler_commande'];
 
-    // Sécurité : On vérifie que la commande appartient bien à cet utilisateur ET est 'en attente'
-    $verif_cmd = $pdo->prepare("SELECT statut FROM commande WHERE id_commande = ? AND id_utilisateur = ?");
-    $verif_cmd->execute([$id_cmd_annuler, $id_user]);
-    $cmd_data = $verif_cmd->fetch();
+    try {
+        ensure_order_history_table($pdo);
+        $pdo->beginTransaction();
 
-    if ($cmd_data && $cmd_data['statut'] === 'en attente') {
-        $delete = $pdo->prepare("DELETE FROM commande WHERE id_commande = ?");
-        $delete->execute([$id_cmd_annuler]);
+        $verif = $pdo->prepare("SELECT id_commande, id_menu, statut FROM commande WHERE id_commande = ? AND id_utilisateur = ? FOR UPDATE");
+        $verif->execute([$idCmd, $id_user]);
+        $commande = $verif->fetch(PDO::FETCH_ASSOC);
+
+        if (!$commande || !order_status_is_waiting($commande['statut'])) {
+            throw new RuntimeException('Cette commande ne peut plus être annulée.');
+        }
+
+        $pdo->prepare("UPDATE commande SET statut = 'annulee' WHERE id_commande = ? AND id_utilisateur = ?")->execute([$idCmd, $id_user]);
+        $pdo->prepare("UPDATE menu SET stock = stock + 1 WHERE id_menu = ?")->execute([(int) $commande['id_menu']]);
+        add_order_history($pdo, $idCmd, 'annulee', 'Commande annulée par le client.');
+
+        $pdo->commit();
+        nosql_sync_stats_from_sql($pdo);
         $message = "<div class='alert-success'>Commande annulée avec succès.</div>";
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $message = "<div class='alert-error'>" . htmlspecialchars($e->getMessage()) . "</div>";
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_modifier_commande'])) {
+    $idCmd = (int) ($_POST['id_commande'] ?? 0);
+    $datePrestation = $_POST['date_prestation'] ?? '';
+    $heurePrestation = $_POST['heure_prestation'] ?? '';
+    $lieuPrestation = trim($_POST['lieu_prestation'] ?? '');
+    $nbPersonnes = (int) ($_POST['nb_personnes'] ?? 0);
+    $horsBordeaux = isset($_POST['hors_bordeaux']);
+    $distanceKm = $horsBordeaux ? (float) ($_POST['distance_km'] ?? 0) : 0;
+
+    if (!is_valid_date_string($datePrestation) || $datePrestation < $date_min_prestation) {
+        $message = "<div class='alert-error'>La date de prestation doit être au minimum dans 3 jours.</div>";
+    } elseif (!preg_match('/^\d{2}:\d{2}$/', $heurePrestation)) {
+        $message = "<div class='alert-error'>L'heure est invalide.</div>";
+    } elseif ($lieuPrestation === '') {
+        $message = "<div class='alert-error'>Le lieu de prestation est obligatoire.</div>";
+    } elseif (!$horsBordeaux && stripos($lieuPrestation, 'bordeaux') === false) {
+        $message = "<div class='alert-error'>Cette adresse ne semble pas être à Bordeaux. Cochez hors Bordeaux et indiquez la distance.</div>";
+    } elseif ($horsBordeaux && $distanceKm <= 0) {
+        $message = "<div class='alert-error'>La distance hors Bordeaux doit être supérieure à 0 km.</div>";
     } else {
-        $message = "<div class='alert-error'>Impossible d'annuler cette commande (déjà acceptée ou introuvable).</div>";
+        try {
+            $req = $pdo->prepare("
+                SELECT c.*, m.prix_min, m.nb_personnes_min
+                FROM commande c
+                JOIN menu m ON c.id_menu = m.id_menu
+                WHERE c.id_commande = ? AND c.id_utilisateur = ?
+            ");
+            $req->execute([$idCmd, $id_user]);
+            $commande = $req->fetch(PDO::FETCH_ASSOC);
+
+            if (!$commande || !order_status_is_waiting($commande['statut'])) {
+                throw new RuntimeException('Cette commande ne peut plus être modifiée.');
+            }
+
+            if ($nbPersonnes < (int) $commande['nb_personnes_min']) {
+                throw new RuntimeException('Le nombre de personnes est inférieur au minimum du menu.');
+            }
+
+            $prixMenuTotal = (float) $commande['prix_min'] * $nbPersonnes;
+
+            if ($nbPersonnes >= ((int) $commande['nb_personnes_min'] + 5)) {
+                $prixMenuTotal *= 0.90;
+            }
+
+            $fraisLivraison = $horsBordeaux ? 5 + (0.59 * $distanceKm) : 0;
+            $prixTotal = round($prixMenuTotal + $fraisLivraison, 2);
+
+            $update = $pdo->prepare("
+                UPDATE commande
+                SET date_prestation = ?, heure_prestation = ?, lieu_prestation = ?, nb_personnes = ?, prix_total = ?
+                WHERE id_commande = ? AND id_utilisateur = ?
+            ");
+            $update->execute([$datePrestation, $heurePrestation, $lieuPrestation, $nbPersonnes, $prixTotal, $idCmd, $id_user]);
+
+            add_order_history($pdo, $idCmd, 'modifiee', 'Commande modifiée par le client.');
+            nosql_sync_stats_from_sql($pdo);
+            $message = "<div class='alert-success'>Commande modifiée avec succès.</div>";
+        } catch (Throwable $e) {
+            $message = "<div class='alert-error'>" . htmlspecialchars($e->getMessage()) . "</div>";
+        }
     }
 }
 
-// traitement avis
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_avis'])) {
-    $id_cmd_avis = (int)$_POST['id_commande'];
-    $note = (int)$_POST['note'];
-    $commentaire = trim($_POST['commentaire']);
+    $idCmd = (int) ($_POST['id_commande'] ?? 0);
+    $note = max(1, min(5, (int) ($_POST['note'] ?? 1)));
+    $commentaire = trim($_POST['commentaire'] ?? '');
 
-    // Sécurité stricte : On revérifie que la commande est 'terminée' et lui appartient
-    $verif_cmd = $pdo->prepare("SELECT statut FROM commande WHERE id_commande = ? AND id_utilisateur = ?");
-    $verif_cmd->execute([$id_cmd_avis, $id_user]);
-    $cmd_data = $verif_cmd->fetch();
+    $verif = $pdo->prepare("SELECT statut FROM commande WHERE id_commande = ? AND id_utilisateur = ?");
+    $verif->execute([$idCmd, $id_user]);
+    $commande = $verif->fetch(PDO::FETCH_ASSOC);
 
-    if ($cmd_data && ($cmd_data['statut'] === 'terminée' || $cmd_data['statut'] === 'termine')) {
-        // Insérer l'avis avec un statut 'en attente' pour que l'employé le valide avant publication
-        $insert_avis = $pdo->prepare("INSERT INTO avis (note, commentaire, statut, id_utilisateur, id_commande) VALUES (?, ?, 'en attente', ?, ?)");
-        $insert_avis->execute([$note, $commentaire, $id_user, $id_cmd_avis]);
-        $message = "<div class='alert-success'>Merci pour votre avis ! Il sera visible dès sa validation par l'équipe.</div>";
+    if ($commande && order_status_is_finished($commande['statut']) && $commentaire !== '') {
+        $check = $pdo->prepare("SELECT id_avis FROM avis WHERE id_commande = ?");
+        $check->execute([$idCmd]);
+
+        if (!$check->fetch()) {
+            $insert = $pdo->prepare("INSERT INTO avis (note, commentaire, statut, id_utilisateur, id_commande) VALUES (?, ?, 'en attente', ?, ?)");
+            $insert->execute([$note, $commentaire, $id_user, $idCmd]);
+            $message = "<div class='alert-success'>Merci pour votre avis. Il sera visible après validation.</div>";
+        }
     }
 }
 
-
-// chargement des données de la page
-// données utilisateur
 $req_user = $pdo->prepare("SELECT * FROM utilisateur WHERE id_utilisateur = ?");
 $req_user->execute([$id_user]);
 $user = $req_user->fetch(PDO::FETCH_ASSOC);
 
-// historique des commandes
 $req_orders = $pdo->prepare("
     SELECT c.*, m.titre as menu_titre
     FROM commande c
@@ -83,6 +163,19 @@ $req_orders = $pdo->prepare("
 $req_orders->execute([$id_user]);
 $commandes = $req_orders->fetchAll(PDO::FETCH_ASSOC);
 
+ensure_order_history_table($pdo);
+$historiques = [];
+if (!empty($commandes)) {
+    $ids = array_column($commandes, 'id_commande');
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $req_hist = $pdo->prepare("SELECT * FROM commande_statut_historique WHERE id_commande IN ($placeholders) ORDER BY date_modification ASC");
+    $req_hist->execute($ids);
+
+    foreach ($req_hist->fetchAll(PDO::FETCH_ASSOC) as $hist) {
+        $historiques[$hist['id_commande']][] = $hist;
+    }
+}
+
 include 'includes/header.php';
 ?>
 
@@ -91,7 +184,7 @@ include 'includes/header.php';
 
     <?php if(!empty($message)) echo $message; ?>
     <?php if(isset($_GET['success']) && $_GET['success'] === 'commande_validee'): ?>
-        <div class="alert-success">Votre commande a bien été enregistrée et est en attente de validation !</div>
+        <div class="alert-success">Votre commande a bien été enregistrée et est en attente de validation.</div>
     <?php endif; ?>
 
     <div class="dashboard-grid">
@@ -99,6 +192,7 @@ include 'includes/header.php';
         <div class="glass-panel p-4">
             <h4 class="text-gold mb-4 border-bottom border-secondary pb-2">Mes Informations</h4>
             <form method="POST" action="">
+                <?php echo csrf_field(); ?>
                 <input type="hidden" name="action_profil" value="1">
 
                 <label class="form-label">Nom</label>
@@ -140,74 +234,123 @@ include 'includes/header.php';
                         </thead>
                         <tbody>
                             <?php foreach($commandes as $cmd): ?>
+                                <?php $statutClean = normalize_order_status($cmd['statut']); ?>
                                 <tr>
                                     <td class="fw-bold"><?php echo htmlspecialchars($cmd['menu_titre']); ?></td>
                                     <td><?php echo date('d/m/Y', strtotime($cmd['date_prestation'])); ?> à <?php echo htmlspecialchars($cmd['heure_prestation']); ?></td>
-                                    <td><?php echo $cmd['nb_personnes']; ?> pers.</td>
-                                    <td class="text-gold fw-bold"><?php echo number_format($cmd['prix_total'], 2, ',', ' '); ?>€</td>
+                                    <td><?php echo (int)$cmd['nb_personnes']; ?> pers.</td>
+                                    <td class="text-gold fw-bold"><?php echo number_format((float)$cmd['prix_total'], 2, ',', ' '); ?> EUR</td>
                                     <td>
-                                        <?php
-                                        $status_class = "badge-waiting";
-                                        $statut_clean = strtolower(trim($cmd['statut']));
-                                        if($statut_clean === 'accepté' || $statut_clean === 'accepte' || $statut_clean === 'en préparation') $status_class = "badge-accepted";
-                                        if($statut_clean === 'en cours de livraison') $status_class = "badge-delivery";
-                                        if($statut_clean === 'livré' || $statut_clean === 'terminée' || $statut_clean === 'termine') $status_class = "badge-success";
-                                        ?>
-                                        <span class="badge-status <?php echo $status_class; ?>">
-                                            <?php echo htmlspecialchars($cmd['statut']); ?>
+                                        <span class="badge-status <?php echo order_status_badge_class($statutClean); ?>">
+                                            <?php echo htmlspecialchars(order_status_label($statutClean)); ?>
                                         </span>
                                     </td>
                                     <td>
-                                        <?php if($statut_clean === 'en attente'): ?>
-                                            <a href="espace_utilisateur?annuler_commande=<?php echo $cmd['id_commande']; ?>"
-                                               class="btn-action-small btn-outline text-danger border-danger"
-                                               onclick="return confirm('Êtes-vous sûr de vouloir annuler cette commande ?');">
-                                                Annuler
-                                            </a>
+                                        <?php if($statutClean === 'en_attente'): ?>
+                                            <button class="btn-action-small btn-outline" type="button" onclick="document.getElementById('formModifBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'table-row';">Modifier</button>
+                                            <form method="POST" action="" style="display:inline;" onsubmit="return confirm('Êtes-vous sûr de vouloir annuler cette commande ?');">
+                                                <?php echo csrf_field(); ?>
+                                                <input type="hidden" name="annuler_commande" value="<?php echo (int)$cmd['id_commande']; ?>">
+                                                <button type="submit" class="btn-action-small btn-outline text-danger border-danger">Annuler</button>
+                                            </form>
                                         <?php endif; ?>
 
-                                        <?php if($statut_clean === 'terminée' || $statut_clean === 'termine'): ?>
+                                        <?php if($statutClean === 'terminee'): ?>
                                             <?php
                                             $check_avis = $pdo->prepare("SELECT id_avis FROM avis WHERE id_commande = ?");
                                             $check_avis->execute([$cmd['id_commande']]);
                                             $deja_avise = $check_avis->fetch();
                                             ?>
-
                                             <?php if(!$deja_avise): ?>
-                                                <button class="btn-action-small btn-primary border-0" onclick="document.getElementById('formAvisBox<?php echo $cmd['id_commande']; ?>').style.display = 'block';">
-                                                    Laisser un avis
-                                                </button>
+                                                <button class="btn-action-small btn-primary border-0" type="button" onclick="document.getElementById('formAvisBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'table-row';">Laisser un avis</button>
                                             <?php else: ?>
                                                 <span class="text-success small fst-italic"><i class="fa-solid fa-check"></i> Avis déposé</span>
                                             <?php endif; ?>
                                         <?php endif; ?>
+
+                                        <?php if(!empty($historiques[$cmd['id_commande']])): ?>
+                                            <button class="btn-action-small btn-outline" type="button" onclick="document.getElementById('suiviBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'table-row';">Suivi</button>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
 
-                                <tr id="formAvisBox<?php echo $cmd['id_commande']; ?>" style="display: none;">
-                                    <td colspan="6" style="background: rgba(212, 175, 55, 0.05); padding: 1.5rem; border-radius: 8px;">
+                                <tr id="suiviBox<?php echo (int)$cmd['id_commande']; ?>" style="display: none;">
+                                    <td colspan="6" style="background: rgba(255,255,255,0.03); padding: 1rem;">
+                                        <strong class="text-gold">Suivi de commande</strong>
+                                        <ul style="margin-top: 1rem;">
+                                            <?php foreach(($historiques[$cmd['id_commande']] ?? []) as $hist): ?>
+                                                <li>
+                                                    <?php echo htmlspecialchars(order_status_label($hist['statut'])); ?> -
+                                                    <?php echo date('d/m/Y H:i', strtotime($hist['date_modification'])); ?>
+                                                    <?php if(!empty($hist['commentaire'])): ?>
+                                                        : <?php echo htmlspecialchars($hist['commentaire']); ?>
+                                                    <?php endif; ?>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                        <button class="btn-action-small btn-outline" type="button" onclick="document.getElementById('suiviBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'none';">Fermer</button>
+                                    </td>
+                                </tr>
+
+                                <tr id="formModifBox<?php echo (int)$cmd['id_commande']; ?>" style="display: none;">
+                                    <td colspan="6" style="background: rgba(212, 175, 55, 0.05); padding: 1.5rem;">
                                         <form method="POST" action="">
-                                            <input type="hidden" name="action_avis" value="1">
-                                            <input type="hidden" name="id_commande" value="<?php echo $cmd['id_commande']; ?>">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="action_modifier_commande" value="1">
+                                            <input type="hidden" name="id_commande" value="<?php echo (int)$cmd['id_commande']; ?>">
 
-                                            <div class="mb-4">
-                                                <label class="form-label">Note (1 à 5 étoiles)</label>
-                                                <select name="note" class="form-control" style="max-width: 300px;" required>
-                                                    <option value="5">⭐⭐⭐⭐⭐ (Excellent)</option>
-                                                    <option value="4">⭐⭐⭐⭐ (Très bon)</option>
-                                                    <option value="3">⭐⭐⭐ (Correct)</option>
-                                                    <option value="2">⭐⭐ (Moyen)</option>
-                                                    <option value="1">⭐ (Mauvais)</option>
-                                                </select>
+                                            <div class="row">
+                                                <div class="col-md-3 mb-3">
+                                                    <label class="form-label">Date</label>
+                                                    <input type="date" name="date_prestation" class="form-control" min="<?php echo $date_min_prestation; ?>" value="<?php echo htmlspecialchars($cmd['date_prestation']); ?>" required>
+                                                </div>
+                                                <div class="col-md-3 mb-3">
+                                                    <label class="form-label">Heure</label>
+                                                    <input type="time" name="heure_prestation" class="form-control" value="<?php echo htmlspecialchars($cmd['heure_prestation']); ?>" required>
+                                                </div>
+                                                <div class="col-md-3 mb-3">
+                                                    <label class="form-label">Convives</label>
+                                                    <input type="number" name="nb_personnes" class="form-control" min="1" value="<?php echo (int)$cmd['nb_personnes']; ?>" required>
+                                                </div>
+                                                <div class="col-md-3 mb-3">
+                                                    <label class="form-label">Distance hors Bordeaux</label>
+                                                    <input type="number" name="distance_km" class="form-control" min="0" step="0.1" value="0">
+                                                    <label class="text-muted small"><input type="checkbox" name="hors_bordeaux"> Hors Bordeaux</label>
+                                                </div>
                                             </div>
 
-                                            <div class="mb-4">
-                                                <label class="form-label">Votre commentaire professionnel</label>
-                                                <textarea name="commentaire" class="form-control" placeholder="Racontez votre expérience culinaire..." required rows="4" style="min-height: 150px; resize: vertical;"></textarea>
-                                            </div>
+                                            <label class="form-label">Lieu de prestation</label>
+                                            <textarea name="lieu_prestation" class="form-control" required><?php echo htmlspecialchars($cmd['lieu_prestation']); ?></textarea>
 
                                             <div class="form-actions">
-                                                <button type="button" class="btn-action-small btn-outline" onclick="document.getElementById('formAvisBox<?php echo $cmd['id_commande']; ?>').style.display = 'none';">Annuler</button>
+                                                <button type="button" class="btn-action-small btn-outline" onclick="document.getElementById('formModifBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'none';">Fermer</button>
+                                                <button type="submit" class="btn-action-small btn-primary border-0">Enregistrer</button>
+                                            </div>
+                                        </form>
+                                    </td>
+                                </tr>
+
+                                <tr id="formAvisBox<?php echo (int)$cmd['id_commande']; ?>" style="display: none;">
+                                    <td colspan="6" style="background: rgba(212, 175, 55, 0.05); padding: 1.5rem;">
+                                        <form method="POST" action="">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="action_avis" value="1">
+                                            <input type="hidden" name="id_commande" value="<?php echo (int)$cmd['id_commande']; ?>">
+
+                                            <label class="form-label">Note</label>
+                                            <select name="note" class="form-control" style="max-width: 300px;" required>
+                                                <option value="5">5 - Excellent</option>
+                                                <option value="4">4 - Très bon</option>
+                                                <option value="3">3 - Correct</option>
+                                                <option value="2">2 - Moyen</option>
+                                                <option value="1">1 - Mauvais</option>
+                                            </select>
+
+                                            <label class="form-label">Votre commentaire</label>
+                                            <textarea name="commentaire" class="form-control" required rows="4"></textarea>
+
+                                            <div class="form-actions">
+                                                <button type="button" class="btn-action-small btn-outline" onclick="document.getElementById('formAvisBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'none';">Annuler</button>
                                                 <button type="submit" class="btn-action-small btn-primary border-0">Envoyer l'avis</button>
                                             </div>
                                         </form>
@@ -219,7 +362,6 @@ include 'includes/header.php';
                 </div>
             <?php endif; ?>
         </div>
-
     </div>
 </div>
 

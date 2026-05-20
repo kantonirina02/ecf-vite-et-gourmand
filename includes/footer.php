@@ -33,12 +33,12 @@
             ?>
           </ul>
         </div>
-        </div>
         <div class="footer-section links">
           <h3><i class="fa-solid fa-link"></i> Liens Utiles</h3>
           <ul>
             <li><a href="mentions">Mentions Légales</a></li>
             <li><a href="cgv">Conditions Générales de Vente</a></li>
+            <li><a href="confidentialite">Politique de confidentialité</a></li>
           </ul>
         </div>
       </div>
@@ -58,6 +58,7 @@
           btnBurger.addEventListener('click', () => {
               navLinks.classList.toggle('active');
               if(navActions) navActions.classList.toggle('active');
+              btnBurger.setAttribute('aria-expanded', navLinks.classList.contains('active') ? 'true' : 'false');
           });
       }
     });

@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once 'includes/security.php';
 require_once 'includes/db.php';
 include 'includes/header.php';
 ?>

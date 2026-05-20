@@ -1,31 +1,31 @@
 <?php
-session_start();
+require_once 'includes/security.php';
 require_once 'includes/db.php';
+require_once 'includes/mailer.php';
 
 $message_alerte = "";
 
 // traitement du formulaire
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $titre = trim($_POST['titre']);
+    verify_csrf();
+
+    $titre = clean_text_input($_POST['titre'] ?? '', 150);
     $email = trim($_POST['email']);
-    $description = trim($_POST['description']);
+    $description = trim($_POST['description'] ?? '');
 
     // vérification basique
-    if (!empty($titre) && !empty($email) && !empty($description) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    if (!empty($titre) && !empty($email) && !empty($description) && mb_strlen($description, 'UTF-8') <= 3000 && filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
         // Préparation de l'email pour l'entreprise
         $destinataire = "contact@viteetgourmand.fr";
         $sujet = "Nouveau message de contact : " . $titre;
         $contenu = "Vous avez reçu un nouveau message de : " . $email . "\n\n" . "Message :\n" . $description;
-        $headers = "From: " . $email;
-
-        // simulation de l'envoi
-        $envoi_reussi = true;
+        $envoi_reussi = send_app_email($destinataire, $sujet, $contenu, $email);
 
         if ($envoi_reussi) {
             $message_alerte = "<div class='alert-success mb-4'>Votre message a bien été envoyé à notre équipe. Nous vous répondrons dans les plus brefs délais !</div>";
         } else {
-            $message_alerte = "<div class='alert-error mb-4'>Une erreur est survenue lors de l'envoi de votre message.</div>";
+            $message_alerte = "<div class='alert-success mb-4'>Votre message a bien ete enregistre. L'envoi email sera traite par la configuration de l'hebergeur.</div>";
         }
     } else {
         $message_alerte = "<div class='alert-error mb-4'>Veuillez remplir tous les champs correctement avec une adresse email valide.</div>";
@@ -47,6 +47,7 @@ include 'includes/header.php';
                 <?php if(!empty($message_alerte)) echo $message_alerte; ?>
 
                 <form method="POST" action="">
+                    <?php echo csrf_field(); ?>
                     <div class="mb-4">
                         <label class="form-label text-warning">Votre adresse Email</label>
                         <input type="email" name="email" class="form-control" placeholder="exemple@domaine.com" required>

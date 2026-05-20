@@ -7,7 +7,7 @@ $requete = $pdo->query("SELECT * FROM menu ORDER BY id_menu ASC");
 $menusPHP = $requete->fetchAll(PDO::FETCH_ASSOC);
 
 // Conversion pour le JavaScript
-$menusJS = json_encode($menusPHP);
+$menusJS = json_encode($menusPHP, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 ?>
 
 <div style="background: var(--bg-darker); padding: 4rem 2rem 2rem; text-align:center;">
@@ -72,6 +72,20 @@ $menusJS = json_encode($menusPHP);
 const menus = <?php echo $menusJS; ?>;
 const container = document.getElementById('menus-container');
 
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }[char]));
+}
+
+function safeFileName(value) {
+  return String(value ?? '').split(/[\\/]/).pop();
+}
+
 function updateMenus() {
   const minPrice = parseInt(document.getElementById('filter-price-min').value) || 0;
   const maxPrice = parseInt(document.getElementById('filter-price-max').value) || Infinity;
@@ -81,8 +95,8 @@ function updateMenus() {
 
   const filtered = menus.filter(m => {
     const matchPrice = parseFloat(m.prix_min) >= minPrice && parseFloat(m.prix_min) <= maxPrice;
-    const matchTheme = theme === '' || m.theme.toLowerCase() === theme;
-    const matchRegime = regime === '' || m.regime.toLowerCase() === regime;
+    const matchTheme = theme === '' || String(m.theme ?? '').toLowerCase() === theme;
+    const matchRegime = regime === '' || String(m.regime ?? '').toLowerCase() === regime;
 
     const matchPeople = minPeople === 0 || parseInt(m.nb_personnes_min) >= minPeople;
 
@@ -96,16 +110,16 @@ function updateMenus() {
 
   container.innerHTML = filtered.map(m => `
     <div class="menu-card">
-      <img src="assets/images/${m.image}" alt="${m.titre}" class="menu-img">
+      <img src="assets/images/${encodeURIComponent(safeFileName(m.image))}" alt="${escapeHTML(m.titre)}" class="menu-img">
       <div class="menu-content">
-        <span class="menu-tag">${m.theme}</span>
-        <h3 class="menu-title">${m.titre}</h3>
-        <p class="menu-desc">${m.description.substring(0, 100)}...</p>
+        <span class="menu-tag">${escapeHTML(m.theme)}</span>
+        <h3 class="menu-title">${escapeHTML(m.titre)}</h3>
+        <p class="menu-desc">${escapeHTML(String(m.description ?? '').substring(0, 100))}...</p>
         <div class="menu-meta">
-          <span><i class="fa-solid fa-users"></i> Min. ${m.nb_personnes_min}</span>
-          <span class="menu-price">${m.prix_min}€ / pers.</span>
+          <span><i class="fa-solid fa-users"></i> Min. ${escapeHTML(m.nb_personnes_min)}</span>
+          <span class="menu-price">${Number(m.prix_min || 0).toFixed(2)} EUR / pers.</span>
         </div>
-        <a href="menu_detail?id=${m.id_menu}" class="btn-outline" style="text-align:center; display:block;">Découvrir le Menu</a>
+        <a href="menu_detail?id=${encodeURIComponent(m.id_menu)}" class="btn-outline" style="text-align:center; display:block;">Découvrir le Menu</a>
       </div>
     </div>
   `).join('');
