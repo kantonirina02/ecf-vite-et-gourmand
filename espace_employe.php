@@ -27,15 +27,215 @@ function option_selected(int $id, array $selected): string
     return in_array($id, $selected, true) ? 'selected' : '';
 }
 
-function sync_menu_images(PDO $pdo, int $idMenu, string $mainImage, string $galleryText): void
+function menu_images_directory(): string
 {
-    $images = array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $galleryText) ?: []));
+    $directory = __DIR__ . '/assets/images';
+
+    if (!is_dir($directory) && !mkdir($directory, 0755, true)) {
+        throw new RuntimeException("Impossible de creer le dossier des images.");
+    }
+
+    if (!is_writable($directory)) {
+        throw new RuntimeException("Le dossier assets/images n'est pas accessible en ecriture.");
+    }
+
+    return $directory;
+}
+
+function uploaded_file_or_null(string $field): ?array
+{
+    if (!isset($_FILES[$field]) || is_array($_FILES[$field]['name'] ?? null)) {
+        return null;
+    }
+
+    return ($_FILES[$field]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE ? null : $_FILES[$field];
+}
+
+function uploaded_files_array(string $field): array
+{
+    if (!isset($_FILES[$field]) || !is_array($_FILES[$field]['name'] ?? null)) {
+        return [];
+    }
+
+    $files = [];
+    $count = count($_FILES[$field]['name']);
+
+    for ($i = 0; $i < $count; $i++) {
+        if (($_FILES[$field]['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            continue;
+        }
+
+        $files[] = [
+            'name' => $_FILES[$field]['name'][$i] ?? '',
+            'type' => $_FILES[$field]['type'][$i] ?? '',
+            'tmp_name' => $_FILES[$field]['tmp_name'][$i] ?? '',
+            'error' => $_FILES[$field]['error'][$i] ?? UPLOAD_ERR_NO_FILE,
+            'size' => $_FILES[$field]['size'][$i] ?? 0,
+        ];
+    }
+
+    return $files;
+}
+
+function upload_error_message(int $errorCode): string
+{
+    return match ($errorCode) {
+        UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => "L'image est trop volumineuse.",
+        UPLOAD_ERR_PARTIAL => "L'image n'a pas ete envoyee completement.",
+        UPLOAD_ERR_NO_TMP_DIR => "Le dossier temporaire d'upload est indisponible.",
+        UPLOAD_ERR_CANT_WRITE => "Impossible d'ecrire l'image sur le serveur.",
+        UPLOAD_ERR_EXTENSION => "L'upload a ete bloque par une extension PHP.",
+        default => "Impossible de recevoir l'image.",
+    };
+}
+
+function save_menu_image_upload(array $file): string
+{
+    $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+
+    if ($errorCode !== UPLOAD_ERR_OK) {
+        throw new RuntimeException(upload_error_message($errorCode));
+    }
+
+    $size = (int) ($file['size'] ?? 0);
+    $maxSize = 5 * 1024 * 1024;
+
+    if ($size <= 0 || $size > $maxSize) {
+        throw new RuntimeException("L'image doit peser moins de 5 Mo.");
+    }
+
+    $tmpPath = (string) ($file['tmp_name'] ?? '');
+
+    if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+        throw new RuntimeException("Image envoyee invalide.");
+    }
+
+    $mime = '';
+
+    if (class_exists('finfo')) {
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = (string) $finfo->file($tmpPath);
+    }
+
+    $extensions = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'image/avif' => 'avif',
+    ];
+
+    if (!isset($extensions[$mime])) {
+        throw new RuntimeException("Format d'image refuse. Formats acceptes : JPG, PNG, WEBP, AVIF.");
+    }
+
+    $fileName = 'menu_' . date('Ymd_His') . '_' . bin2hex(random_bytes(8)) . '.' . $extensions[$mime];
+    $targetPath = menu_images_directory() . DIRECTORY_SEPARATOR . $fileName;
+
+    if (!move_uploaded_file($tmpPath, $targetPath)) {
+        throw new RuntimeException("Impossible d'enregistrer l'image.");
+    }
+
+    return $fileName;
+}
+
+function posted_image_names(string $field): array
+{
+    $values = $_POST[$field] ?? [];
+    $values = is_array($values) ? $values : [$values];
+    $images = [];
+
+    foreach ($values as $value) {
+        $image = basename(clean_text_input((string) $value, 255));
+
+        if ($image !== '') {
+            $images[] = $image;
+        }
+    }
+
+    return array_values(array_unique($images));
+}
+
+function menu_all_image_files(PDO $pdo, int $idMenu): array
+{
+    $images = [];
+
+    $stmt = $pdo->prepare("SELECT image FROM menu WHERE id_menu = ?");
+    $stmt->execute([$idMenu]);
+    $mainImage = $stmt->fetchColumn();
+
+    if ($mainImage) {
+        $images[] = basename((string) $mainImage);
+    }
+
+    $stmt = $pdo->prepare("SELECT chemin FROM menu_image WHERE id_menu = ?");
+    $stmt->execute([$idMenu]);
+
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $image) {
+        $image = basename((string) $image);
+
+        if ($image !== '') {
+            $images[] = $image;
+        }
+    }
+
+    return array_values(array_unique($images));
+}
+
+function is_managed_menu_image(string $image): bool
+{
+    return (bool) preg_match('/^menu_[0-9]{8}_[0-9]{6}_[a-f0-9]{16}\.(jpg|png|webp|avif)$/', basename($image));
+}
+
+function delete_uploaded_menu_image_if_unused(PDO $pdo, string $image): void
+{
+    $image = basename($image);
+
+    if ($image === '' || !is_managed_menu_image($image)) {
+        return;
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT
+            (SELECT COUNT(*) FROM menu WHERE image = ?)
+            + (SELECT COUNT(*) FROM menu_image WHERE chemin = ?) AS total_refs
+    ");
+    $stmt->execute([$image, $image]);
+
+    if ((int) $stmt->fetchColumn() > 0) {
+        return;
+    }
+
+    $path = __DIR__ . '/assets/images/' . $image;
+
+    if (is_file($path)) {
+        @unlink($path);
+    }
+}
+
+function delete_uploaded_menu_images_if_unused(PDO $pdo, array $images): void
+{
+    foreach (array_unique(array_map('basename', $images)) as $image) {
+        delete_uploaded_menu_image_if_unused($pdo, $image);
+    }
+}
+
+function sync_menu_images(PDO $pdo, int $idMenu, string $mainImage, array $galleryImages): void
+{
+    $images = [];
+
+    foreach ($galleryImages as $image) {
+        $image = basename((string) $image);
+
+        if ($image !== '') {
+            $images[] = $image;
+        }
+    }
 
     if ($mainImage !== '' && !in_array($mainImage, $images, true)) {
         array_unshift($images, $mainImage);
     }
 
-    $images = array_values(array_unique(array_map('basename', $images)));
+    $images = array_values(array_unique($images));
 
     $pdo->prepare("DELETE FROM menu_image WHERE id_menu = ?")->execute([$idMenu]);
     $insert = $pdo->prepare("INSERT INTO menu_image (chemin, id_menu) VALUES (?, ?)");
@@ -165,7 +365,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_modifier_horai
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_save'])) {
     $idMenu = (int) ($_POST['id_menu'] ?? 0);
     $titre = clean_text_input($_POST['titre'] ?? '', 100);
-    $image = basename(clean_text_input($_POST['image'] ?? '', 255));
     $description = trim($_POST['description'] ?? '');
     $theme = clean_text_input($_POST['theme'] ?? '', 50);
     $regime = clean_text_input($_POST['regime'] ?? '', 50);
@@ -174,9 +373,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_save'])) 
     $stock = max(0, (int) ($_POST['stock'] ?? 0));
     $conditions = trim($_POST['conditions'] ?? '');
     $platsMenu = post_int_array('plats_menu');
-    $imagesGalerie = trim($_POST['images_galerie'] ?? '');
+    $imagesGalerieExistantes = posted_image_names('images_galerie_existantes');
+    $imagesUploadees = [];
+    $anciennesImages = [];
 
     try {
+        if ($idMenu > 0) {
+            $reqMenu = $pdo->prepare("SELECT * FROM menu WHERE id_menu = ?");
+            $reqMenu->execute([$idMenu]);
+            $menuActuel = $reqMenu->fetch(PDO::FETCH_ASSOC);
+
+            if (!$menuActuel) {
+                throw new RuntimeException('Menu introuvable.');
+            }
+
+            $image = basename((string) $menuActuel['image']);
+            $anciennesImages = menu_all_image_files($pdo, $idMenu);
+        } else {
+            $image = '';
+        }
+
+        $imagePrincipale = uploaded_file_or_null('image_principale');
+
+        if ($imagePrincipale !== null) {
+            $image = save_menu_image_upload($imagePrincipale);
+            $imagesUploadees[] = $image;
+        } elseif ($idMenu === 0) {
+            throw new RuntimeException("L'image principale est obligatoire.");
+        }
+
+        $nouvellesImagesGalerie = [];
+
+        foreach (uploaded_files_array('images_galerie') as $fichierImage) {
+            $imageGalerie = save_menu_image_upload($fichierImage);
+            $nouvellesImagesGalerie[] = $imageGalerie;
+            $imagesUploadees[] = $imageGalerie;
+        }
+
+        $imagesGalerie = array_merge($imagesGalerieExistantes, $nouvellesImagesGalerie);
+
         $pdo->beginTransaction();
 
         if ($idMenu > 0) {
@@ -199,25 +434,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_save'])) 
         sync_menu_plats($pdo, $idMenu, $platsMenu);
         $pdo->commit();
 
+        try {
+            delete_uploaded_menu_images_if_unused($pdo, $anciennesImages);
+        } catch (Throwable $cleanupError) {
+            error_log($cleanupError->getMessage());
+        }
+
         $message = "<div class='alert-success'>Menu enregistré.</div>";
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
+
+        try {
+            delete_uploaded_menu_images_if_unused($pdo, $imagesUploadees);
+        } catch (Throwable $cleanupError) {
+            error_log($cleanupError->getMessage());
+        }
+
         error_log($e->getMessage());
-        $message = "<div class='alert-error'>Impossible d'enregistrer le menu.</div>";
+        $message = "<div class='alert-error'>Impossible d'enregistrer le menu : " . htmlspecialchars($e->getMessage()) . "</div>";
     }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_delete'])) {
     $idMenu = (int) $_POST['id_menu'];
+    $imagesASupprimer = menu_all_image_files($pdo, $idMenu);
 
     try {
+        $pdo->beginTransaction();
         $pdo->prepare("DELETE FROM menu_image WHERE id_menu = ?")->execute([$idMenu]);
         $pdo->prepare("DELETE FROM menu_plat WHERE id_menu = ?")->execute([$idMenu]);
         $pdo->prepare("DELETE FROM menu WHERE id_menu = ?")->execute([$idMenu]);
+        $pdo->commit();
+
+        try {
+            delete_uploaded_menu_images_if_unused($pdo, $imagesASupprimer);
+        } catch (Throwable $cleanupError) {
+            error_log($cleanupError->getMessage());
+        }
         $message = "<div class='alert-success'>Menu supprimé.</div>";
     } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
         error_log($e->getMessage());
         $message = "<div class='alert-error'>Impossible de supprimer ce menu car il est peut-être lié à une commande.</div>";
     }
@@ -434,16 +695,16 @@ include 'includes/header.php';
 
         <div class="glass-panel p-4" style="grid-column: 1 / -1;">
             <h4 class="text-white mb-4 border-bottom border-secondary pb-2">Gestion des Menus</h4>
-            <form method="POST" action="" class="mb-4">
+            <form method="POST" action="" class="mb-4" enctype="multipart/form-data">
                 <?php echo csrf_field(); ?>
                 <input type="hidden" name="action_menu_save" value="1">
                 <input type="hidden" name="id_menu" value="">
                 <label class="form-label">Titre</label>
                 <input type="text" name="titre" class="form-control" required>
                 <label class="form-label">Image principale</label>
-                <input type="text" name="image" class="form-control" placeholder="menu1.png" required>
+                <input type="file" name="image_principale" class="form-control" accept="image/jpeg,image/png,image/webp,image/avif" required>
                 <label class="form-label">Galerie d'images</label>
-                <textarea name="images_galerie" class="form-control" placeholder="Une image par ligne : menu1.png"></textarea>
+                <input type="file" name="images_galerie[]" class="form-control" accept="image/jpeg,image/png,image/webp,image/avif" multiple>
                 <label class="form-label">Description</label>
                 <textarea name="description" class="form-control" required></textarea>
                 <label class="form-label">Thème</label>
@@ -473,6 +734,7 @@ include 'includes/header.php';
                     <tbody>
                         <?php foreach($menus as $menu): ?>
                             <?php $selectedPlats = $menuPlatMap[(int)$menu['id_menu']] ?? []; ?>
+                            <?php $selectedImages = $menuImageMap[(int)$menu['id_menu']] ?? []; ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($menu['titre']); ?></td>
                                 <td><?php echo htmlspecialchars($menu['theme']); ?></td>
@@ -489,16 +751,33 @@ include 'includes/header.php';
                             </tr>
                             <tr>
                                 <td colspan="5" style="background:rgba(255,255,255,0.03);">
-                                    <form method="POST" action="">
+                                    <form method="POST" action="" enctype="multipart/form-data">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action_menu_save" value="1">
                                         <input type="hidden" name="id_menu" value="<?php echo (int)$menu['id_menu']; ?>">
                                         <label class="form-label">Titre</label>
                                         <input type="text" name="titre" class="form-control" value="<?php echo htmlspecialchars($menu['titre']); ?>" required>
                                         <label class="form-label">Image principale</label>
-                                        <input type="text" name="image" class="form-control" value="<?php echo htmlspecialchars($menu['image']); ?>" required>
+                                        <?php if(!empty($menu['image'])): ?>
+                                            <div class="mb-2">
+                                                <img src="assets/images/<?php echo htmlspecialchars(basename($menu['image'])); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - image principale'); ?>" style="width:90px;height:70px;object-fit:cover;border-radius:8px;">
+                                            </div>
+                                        <?php endif; ?>
+                                        <input type="file" name="image_principale" class="form-control" accept="image/jpeg,image/png,image/webp,image/avif">
                                         <label class="form-label">Galerie d'images</label>
-                                        <textarea name="images_galerie" class="form-control"><?php echo htmlspecialchars(implode("\n", $menuImageMap[(int)$menu['id_menu']] ?? [])); ?></textarea>
+                                        <?php if(!empty($selectedImages)): ?>
+                                            <div class="mb-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;">
+                                                <?php foreach($selectedImages as $imageExistante): ?>
+                                                    <?php $imageExistante = basename($imageExistante); ?>
+                                                    <label style="display:flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.04);padding:.5rem;border-radius:8px;">
+                                                        <input type="checkbox" name="images_galerie_existantes[]" value="<?php echo htmlspecialchars($imageExistante); ?>" checked>
+                                                        <img src="assets/images/<?php echo htmlspecialchars($imageExistante); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - galerie'); ?>" style="width:56px;height:42px;object-fit:cover;border-radius:6px;">
+                                                        <span class="small text-muted"><?php echo htmlspecialchars($imageExistante); ?></span>
+                                                    </label>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                        <input type="file" name="images_galerie[]" class="form-control" accept="image/jpeg,image/png,image/webp,image/avif" multiple>
                                         <label class="form-label">Description</label>
                                         <textarea name="description" class="form-control" required><?php echo htmlspecialchars($menu['description']); ?></textarea>
                                         <label class="form-label">Thème</label>

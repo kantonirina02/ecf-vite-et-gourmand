@@ -12,8 +12,8 @@ RUN apt-get update \
 WORKDIR /var/www/html
 COPY . /var/www/html
 
-RUN mkdir -p /var/www/html/data \
-    && chown -R www-data:www-data /var/www/html/data
+RUN mkdir -p /var/www/html/data /var/www/html/assets/images \
+    && chown -R www-data:www-data /var/www/html/data /var/www/html/assets/images
 
 EXPOSE 10000
 
