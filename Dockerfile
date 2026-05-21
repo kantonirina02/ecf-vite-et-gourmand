@@ -1,7 +1,7 @@
 FROM php:8.3-apache
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libssl-dev libonig-dev pkg-config \
+    && apt-get install -y --no-install-recommends libssl-dev libonig-dev pkg-config libzstd-dev \
     && docker-php-ext-install mbstring pdo_mysql \
     && pecl install mongodb \
     && docker-php-ext-enable mongodb \
