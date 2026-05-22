@@ -1,21 +1,31 @@
 <?php
-$host = 'localhost';
-$dbname = 'vite_et_gourmand';
-$username = 'root';
-$password = ''; // Par défaut vide sur WampServer
+function env_value(string $key, string $default = ''): string
+{
+    $value = getenv($key);
+
+    return $value === false || $value === '' ? $default : (string) $value;
+}
+
+$host = env_value('DB_HOST', 'localhost');
+$dbname = env_value('DB_NAME', 'vite_et_gourmand');
+$username = env_value('DB_USER', 'root');
+$password = env_value('DB_PASSWORD', '');
+$port = env_value('DB_PORT', '3306');
 
 try {
-    // Initialisation de la connexion
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-
-    // Configuration des options
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-
-    echo "Connexion réussie !";
-
+    $pdo = new PDO(
+        "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4",
+        $username,
+        $password,
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]
+    );
 } catch (PDOException $e) {
-    // En cas d'erreur de connexion
-    die("Erreur de connexion : " . $e->getMessage());
+    error_log($e->getMessage());
+    http_response_code(500);
+    exit("Erreur serveur. Impossible de se connecter a la base de donnees.");
 }
 ?>

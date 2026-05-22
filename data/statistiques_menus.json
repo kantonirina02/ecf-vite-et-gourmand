@@ -1,0 +1,15 @@
+{
+    "1": {
+        "id_menu": 1,
+        "nom_menu": "Menu Prestige de Noël",
+        "nombre_commandes": 1,
+        "chiffre_affaires": 870.16,
+        "commandes": [
+            {
+                "id_commande": 4,
+                "date": "2026-05-20",
+                "montant": 870.16
+            }
+        ]
+    }
+}
