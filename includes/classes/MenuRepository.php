@@ -19,4 +19,42 @@ final class MenuRepository
 
         return $statement->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    public function findById(int $idMenu): ?array
+    {
+        $statement = $this->pdo->prepare("SELECT * FROM menu WHERE id_menu = :id");
+        $statement->execute(['id' => $idMenu]);
+        $menu = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $menu ?: null;
+    }
+
+    public function findDishesWithAllergens(int $idMenu): array
+    {
+        $statement = $this->pdo->prepare("
+            SELECT
+                p.id_plat,
+                p.nom,
+                p.categorie,
+                GROUP_CONCAT(a.nom SEPARATOR ', ') as allergenes
+            FROM plat p
+            JOIN menu_plat mp ON p.id_plat = mp.id_plat
+            LEFT JOIN plat_allergene pa ON p.id_plat = pa.id_plat
+            LEFT JOIN allergene a ON pa.id_allergene = a.id_allergene
+            WHERE mp.id_menu = :id
+            GROUP BY p.id_plat
+            ORDER BY FIELD(LOWER(p.categorie), 'entrée', 'plat', 'dessert')
+        ");
+        $statement->execute(['id' => $idMenu]);
+
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function findImagePaths(int $idMenu): array
+    {
+        $statement = $this->pdo->prepare("SELECT chemin FROM menu_image WHERE id_menu = ? ORDER BY id_image ASC");
+        $statement->execute([$idMenu]);
+
+        return array_column($statement->fetchAll(PDO::FETCH_ASSOC), 'chemin');
+    }
 }

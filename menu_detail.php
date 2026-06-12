@@ -1,45 +1,23 @@
 <?php
 require_once 'includes/db.php';
+require_once 'includes/classes/MenuRepository.php';
 
-// Récupération et sécurité de l'ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     header('Location: menus');
     exit;
 }
 $id_menu = (int) $_GET['id'];
+$menuRepository = new MenuRepository($pdo);
 
-// Requête pour le Menu (Informations principales)
-$requete = $pdo->prepare("SELECT * FROM menu WHERE id_menu = :id");
-$requete->execute(['id' => $id_menu]);
-$menu = $requete->fetch(PDO::FETCH_ASSOC);
+$menu = $menuRepository->findById($id_menu);
 
 if (!$menu) {
     header('Location: menus');
     exit;
 }
 
-// Requête pour les Plats et Allergènes (Triple Jointure SQL)
-// relié 'plat', 'menu_plat', 'plat_allergene' et 'allergene'
-$req_plats = $pdo->prepare("
-    SELECT
-        p.id_plat,
-        p.nom,
-        p.categorie,
-        GROUP_CONCAT(a.nom SEPARATOR ', ') as allergenes
-    FROM plat p
-    JOIN menu_plat mp ON p.id_plat = mp.id_plat
-    LEFT JOIN plat_allergene pa ON p.id_plat = pa.id_plat
-    LEFT JOIN allergene a ON pa.id_allergene = a.id_allergene
-    WHERE mp.id_menu = :id
-    GROUP BY p.id_plat
-    ORDER BY FIELD(LOWER(p.categorie), 'entrée', 'plat', 'dessert')
-");
-$req_plats->execute(['id' => $id_menu]);
-$platsDuMenu = $req_plats->fetchAll(PDO::FETCH_ASSOC);
-
-$req_images = $pdo->prepare("SELECT chemin FROM menu_image WHERE id_menu = ? ORDER BY id_image ASC");
-$req_images->execute([$id_menu]);
-$imagesMenu = array_column($req_images->fetchAll(PDO::FETCH_ASSOC), 'chemin');
+$platsDuMenu = $menuRepository->findDishesWithAllergens($id_menu);
+$imagesMenu = $menuRepository->findImagePaths($id_menu);
 
 if (empty($imagesMenu) && !empty($menu['image'])) {
     $imagesMenu = [$menu['image']];
