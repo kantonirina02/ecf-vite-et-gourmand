@@ -5,6 +5,8 @@ require_once 'includes/mailer.php';
 require_once 'includes/order_history.php';
 require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
+require_once 'includes/classes/AllergenRepository.php';
+require_once 'includes/classes/DishRepository.php';
 require_once 'includes/classes/MenuRepository.php';
 require_once 'includes/classes/OrderRepository.php';
 require_once 'includes/classes/ReviewRepository.php';
@@ -12,6 +14,8 @@ require_once 'includes/classes/ScheduleRepository.php';
 
 require_role(['employe', 'admin']);
 
+$allergenRepository = new AllergenRepository($pdo);
+$dishRepository = new DishRepository($pdo);
 $menuRepository = new MenuRepository($pdo);
 $orderRepository = new OrderRepository($pdo);
 $reviewRepository = new ReviewRepository($pdo);
@@ -560,24 +564,12 @@ $commandes = $orderRepository->findForEmployeeBoard($statusValues, $filtreClient
 
 $avisEnAttente = $reviewRepository->findPending();
 $horaires = $scheduleRepository->findAll();
-$menus = $pdo->query("SELECT * FROM menu ORDER BY id_menu DESC")->fetchAll(PDO::FETCH_ASSOC);
-$plats = $pdo->query("SELECT * FROM plat ORDER BY categorie, nom")->fetchAll(PDO::FETCH_ASSOC);
-$allergenes = $pdo->query("SELECT * FROM allergene ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
-
-$menuPlatMap = [];
-foreach ($pdo->query("SELECT id_menu, id_plat FROM menu_plat")->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $menuPlatMap[(int) $row['id_menu']][] = (int) $row['id_plat'];
-}
-
-$menuImageMap = [];
-foreach ($pdo->query("SELECT id_menu, chemin FROM menu_image ORDER BY id_image ASC")->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $menuImageMap[(int) $row['id_menu']][] = $row['chemin'];
-}
-
-$platAllergeneMap = [];
-foreach ($pdo->query("SELECT id_plat, id_allergene FROM plat_allergene")->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $platAllergeneMap[(int) $row['id_plat']][] = (int) $row['id_allergene'];
-}
+$menus = $menuRepository->findAllForEmployeeBoard();
+$plats = $dishRepository->findAll();
+$allergenes = $allergenRepository->findAll();
+$menuPlatMap = $menuRepository->findDishMap();
+$menuImageMap = $menuRepository->findImageMap();
+$platAllergeneMap = $dishRepository->findAllergenMap();
 
 include 'includes/header.php';
 ?>

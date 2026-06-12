@@ -20,6 +20,13 @@ final class MenuRepository
         return $statement->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function findAllForEmployeeBoard(): array
+    {
+        $statement = $this->pdo->query("SELECT * FROM menu ORDER BY id_menu DESC");
+
+        return $statement ? $statement->fetchAll(PDO::FETCH_ASSOC) : [];
+    }
+
     public function findById(int $idMenu): ?array
     {
         $statement = $this->pdo->prepare("SELECT * FROM menu WHERE id_menu = :id");
@@ -81,5 +88,37 @@ final class MenuRepository
         $statement->execute([$idMenu]);
 
         return array_column($statement->fetchAll(PDO::FETCH_ASSOC), 'chemin');
+    }
+
+    public function findDishMap(): array
+    {
+        $statement = $this->pdo->query("SELECT id_menu, id_plat FROM menu_plat");
+
+        if (!$statement) {
+            return [];
+        }
+
+        $dishMap = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $dishMap[(int) $row['id_menu']][] = (int) $row['id_plat'];
+        }
+
+        return $dishMap;
+    }
+
+    public function findImageMap(): array
+    {
+        $statement = $this->pdo->query("SELECT id_menu, chemin FROM menu_image ORDER BY id_image ASC");
+
+        if (!$statement) {
+            return [];
+        }
+
+        $imageMap = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $imageMap[(int) $row['id_menu']][] = $row['chemin'];
+        }
+
+        return $imageMap;
     }
 }
