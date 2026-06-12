@@ -2,27 +2,12 @@
 require_once 'includes/security.php';
 require_once 'includes/db.php';
 require_once 'includes/mailer.php';
+require_once 'includes/classes/PasswordResetRepository.php';
+require_once 'includes/classes/UserRepository.php';
 
 $message = "";
-
-function ensure_password_reset_table(PDO $pdo): void
-{
-    try {
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS password_reset (
-                id_reset INT AUTO_INCREMENT PRIMARY KEY,
-                email VARCHAR(255) NOT NULL,
-                token_hash VARCHAR(255) NOT NULL,
-                expires_at DATETIME NOT NULL,
-                used_at DATETIME NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_password_reset_token (email, expires_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        ");
-    } catch (Throwable $e) {
-        error_log($e->getMessage());
-    }
-}
+$passwordResetRepository = new PasswordResetRepository($pdo);
+$userRepository = new UserRepository($pdo);
 
 function current_base_url(): string
 {
@@ -45,22 +30,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = "<div class='alert-success mb-4'>Si cet email existe dans notre systeme, un lien de reinitialisation vient de vous etre envoye.</div>";
     } elseif (filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $_SESSION['last_reset_request'] = time();
-        $verif = $pdo->prepare("SELECT id_utilisateur, prenom FROM utilisateur WHERE email = ?");
-        $verif->execute([$email]);
-        $user = $verif->fetch(PDO::FETCH_ASSOC);
+        $user = $userRepository->findByEmail($email);
 
         if ($user) {
             try {
-                ensure_password_reset_table($pdo);
+                $passwordResetRepository->ensureTable();
 
                 $token = bin2hex(random_bytes(32));
                 $tokenHash = password_hash($token, PASSWORD_DEFAULT);
                 $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
-                $pdo->prepare("UPDATE password_reset SET used_at = NOW() WHERE email = ? AND used_at IS NULL")->execute([$email]);
-
-                $insert = $pdo->prepare("INSERT INTO password_reset (email, token_hash, expires_at) VALUES (?, ?, ?)");
-                $insert->execute([$email, $tokenHash, $expiresAt]);
+                $passwordResetRepository->markOpenRequestsAsUsed($email);
+                $passwordResetRepository->create($email, $tokenHash, $expiresAt);
 
                 $resetLink = current_base_url() . '/reinitialisation_mdp?token=' . urlencode($token) . '&email=' . urlencode($email);
                 $body = "Bonjour " . ($user['prenom'] ?: '') . ",\n\n";

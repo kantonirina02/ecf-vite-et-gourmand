@@ -2,8 +2,10 @@
 require_once 'includes/security.php';
 require_once 'includes/db.php';
 require_once 'includes/mailer.php';
+require_once 'includes/classes/UserRepository.php';
 
 $message = "";
+$userRepository = new UserRepository($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -35,9 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hash = password_hash($password_clair, PASSWORD_DEFAULT);
 
         try {
-            // Utilisation BDD
-            $insert = $pdo->prepare("INSERT INTO utilisateur (nom, prenom, email, gsm, adresse_postale, mot_de_passe, role) VALUES (?, ?, ?, ?, ?, ?, 'utilisateur')");
-            $insert->execute([$nom, $prenom, $email, $gsm, $adresse_postale, $hash]);
+            $userRepository->createCustomer($nom, $prenom, $email, $gsm, $adresse_postale, $hash);
 
             send_app_email(
                 $email,

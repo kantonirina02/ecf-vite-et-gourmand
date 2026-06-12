@@ -1,6 +1,7 @@
 <?php
 require_once 'includes/security.php';
 require_once 'includes/db.php';
+require_once 'includes/classes/UserRepository.php';
 
 if (isset($_SESSION['user_id'])) {
     header('Location: /');
@@ -8,6 +9,7 @@ if (isset($_SESSION['user_id'])) {
 }
 
 $message = "";
+$userRepository = new UserRepository($pdo);
 
 if (isset($_GET['inscription']) && $_GET['inscription'] === 'success') {
     $message = "<div class='alert-success mb-4'>Inscription réussie. Vous pouvez maintenant vous connecter.</div>";
@@ -22,9 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (login_is_blocked($pdo, $email)) {
         $message = "<div class='alert-error'>Trop de tentatives. Réessayez dans quelques minutes.</div>";
     } else {
-        $requete = $pdo->prepare("SELECT * FROM utilisateur WHERE email = ?");
-        $requete->execute([$email]);
-        $user = $requete->fetch(PDO::FETCH_ASSOC);
+        $user = $userRepository->findByEmail($email);
 
         if (
             $user

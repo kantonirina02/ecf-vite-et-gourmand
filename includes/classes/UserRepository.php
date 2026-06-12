@@ -18,6 +18,15 @@ final class UserRepository
         return $user ?: null;
     }
 
+    public function findByEmail(string $email): ?array
+    {
+        $statement = $this->pdo->prepare("SELECT * FROM utilisateur WHERE email = ?");
+        $statement->execute([$email]);
+        $user = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $user ?: null;
+    }
+
     public function updateProfile(int $idUser, string $nom, string $prenom, string $gsm, string $adresse): bool
     {
         $statement = $this->pdo->prepare("
@@ -45,6 +54,29 @@ final class UserRepository
         ");
 
         return $statement->execute([$nom, $prenom, $email, $hashedPassword]);
+    }
+
+    public function createCustomer(
+        string $nom,
+        string $prenom,
+        string $email,
+        string $gsm,
+        string $adresse,
+        string $hashedPassword
+    ): bool {
+        $statement = $this->pdo->prepare("
+            INSERT INTO utilisateur (nom, prenom, email, gsm, adresse_postale, mot_de_passe, role)
+            VALUES (?, ?, ?, ?, ?, ?, 'utilisateur')
+        ");
+
+        return $statement->execute([$nom, $prenom, $email, $gsm, $adresse, $hashedPassword]);
+    }
+
+    public function updatePasswordByEmail(string $email, string $hashedPassword): bool
+    {
+        $statement = $this->pdo->prepare("UPDATE utilisateur SET mot_de_passe = ? WHERE email = ?");
+
+        return $statement->execute([$hashedPassword, $email]);
     }
 
     public function updateEmployeeStatus(int $idEmployee, string $status): bool
