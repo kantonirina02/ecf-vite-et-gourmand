@@ -6,6 +6,7 @@ require_once 'includes/order_history.php';
 require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
 require_once 'includes/classes/OrderPriceCalculator.php';
+require_once 'includes/classes/UserRepository.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login?erreur=connexion_requise');
@@ -28,9 +29,8 @@ if (!$menu) {
     exit;
 }
 
-$req_user = $pdo->prepare("SELECT * FROM utilisateur WHERE id_utilisateur = ?");
-$req_user->execute([$_SESSION['user_id']]);
-$user = $req_user->fetch(PDO::FETCH_ASSOC);
+$userRepository = new UserRepository($pdo);
+$user = $userRepository->findById((int) $_SESSION['user_id']);
 
 if (!$user) {
     header('Location: logout');
