@@ -7,11 +7,15 @@ require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
 require_once 'includes/classes/MenuRepository.php';
 require_once 'includes/classes/OrderRepository.php';
+require_once 'includes/classes/ReviewRepository.php';
+require_once 'includes/classes/ScheduleRepository.php';
 
 require_role(['employe', 'admin']);
 
 $menuRepository = new MenuRepository($pdo);
 $orderRepository = new OrderRepository($pdo);
+$reviewRepository = new ReviewRepository($pdo);
+$scheduleRepository = new ScheduleRepository($pdo);
 $message = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -341,10 +345,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_avis'], $_POST
     $action = $_POST['action_avis'];
 
     if ($action === 'valider') {
-        $pdo->prepare("UPDATE avis SET statut = 'validé' WHERE id_avis = ?")->execute([$idAvis]);
+        $reviewRepository->updateStatus($idAvis, 'validé');
         $message = "<div class='alert-success'>L'avis a été validé et sera visible sur l'accueil.</div>";
     } elseif ($action === 'refuser') {
-        $pdo->prepare("UPDATE avis SET statut = 'refusé' WHERE id_avis = ?")->execute([$idAvis]);
+        $reviewRepository->updateStatus($idAvis, 'refusé');
         $message = "<div class='alert-success'>L'avis a été refusé et masqué.</div>";
     }
 }
@@ -355,7 +359,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_modifier_horai
     $heures = clean_text_input($_POST['heures'] ?? '', 50);
 
     if ($jour !== '' && $heures !== '') {
-        $pdo->prepare("UPDATE horaire SET jour = ?, heures = ? WHERE id_horaire = ?")->execute([$jour, $heures, $idHoraire]);
+        $scheduleRepository->update($idHoraire, $jour, $heures);
         $message = "<div class='alert-success'>L'horaire a été mis à jour.</div>";
     }
 }
@@ -554,17 +558,8 @@ if (!empty($_GET['filtre_statut'])) {
 $filtreClient = trim($_GET['filtre_client'] ?? '');
 $commandes = $orderRepository->findForEmployeeBoard($statusValues, $filtreClient);
 
-$avisEnAttente = $pdo->query("
-    SELECT a.*, u.nom, u.prenom, m.titre as menu_titre
-    FROM avis a
-    JOIN utilisateur u ON a.id_utilisateur = u.id_utilisateur
-    JOIN commande c ON a.id_commande = c.id_commande
-    JOIN menu m ON c.id_menu = m.id_menu
-    WHERE a.statut = 'en attente'
-    ORDER BY a.id_avis DESC
-")->fetchAll(PDO::FETCH_ASSOC);
-
-$horaires = $pdo->query("SELECT * FROM horaire ORDER BY id_horaire ASC")->fetchAll(PDO::FETCH_ASSOC);
+$avisEnAttente = $reviewRepository->findPending();
+$horaires = $scheduleRepository->findAll();
 $menus = $pdo->query("SELECT * FROM menu ORDER BY id_menu DESC")->fetchAll(PDO::FETCH_ASSOC);
 $plats = $pdo->query("SELECT * FROM plat ORDER BY categorie, nom")->fetchAll(PDO::FETCH_ASSOC);
 $allergenes = $pdo->query("SELECT * FROM allergene ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
