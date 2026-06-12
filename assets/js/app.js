@@ -169,22 +169,22 @@ class MenuFilter {
             <span><i class="fa-solid fa-users"></i> Min. ${minPeople}</span>
             <span class="menu-price">${price} EUR / pers.</span>
           </div>
-          <a href="${detailUrl}" class="btn-outline" style="text-align:center; display:block;">Découvrir le Menu</a>
+          <a href="${detailUrl}" class="btn-outline menu-card-link">Découvrir le Menu</a>
         </div>
       </div>
     `;
   }
 
   loadingTemplate() {
-    return '<div style="grid-column: 1/-1; text-align:center; padding: 4rem; background: var(--card-bg); border-radius:16px;">Chargement des menus...</div>';
+    return '<div class="menus-state-card">Chargement des menus...</div>';
   }
 
   emptyTemplate() {
-    return '<div style="grid-column: 1/-1; text-align:center; padding: 4rem; background: var(--card-bg); border-radius:16px;">Aucun menu ne correspond à vos critères.</div>';
+    return '<div class="menus-state-card">Aucun menu ne correspond à vos critères.</div>';
   }
 
   errorTemplate() {
-    return '<div style="grid-column: 1/-1; text-align:center; padding: 4rem; background: var(--card-bg); border-radius:16px;">Impossible de charger les menus.</div>';
+    return '<div class="menus-state-card">Impossible de charger les menus.</div>';
   }
 }
 
