@@ -38,20 +38,20 @@ include 'includes/header.php';
             <div class="col-lg-7">
                 <div class="mb-4">
                     <span class="menu-tag me-2"><?php echo htmlspecialchars($menu['theme'] ?? ''); ?></span>
-                    <span class="menu-tag" style="background:rgba(16, 185, 129, 0.1); color:var(--success)">
+                    <span class="menu-tag menu-tag-regime">
                         <?php echo strtoupper(htmlspecialchars($menu['regime'] ?? '')); ?>
                     </span>
                 </div>
-                <p class="text-muted" style="font-size: 1.1rem; line-height: 1.8;">
+                <p class="text-muted menu-detail-description">
                     <?php echo nl2br(htmlspecialchars($menu['description'] ?? '')); ?>
                 </p>
             </div>
 
             <div class="col-lg-5">
-                <div class="glass-panel p-4" style="background: rgba(0,0,0,0.3);">
-                    <div class="text-gold fw-bold mb-3" style="font-size: 2.5rem;">
+                <div class="glass-panel p-4 menu-order-panel">
+                    <div class="text-gold fw-bold mb-3 menu-detail-price">
                         <?php echo number_format($menu['prix_min'] ?? 0, 0, ',', ' '); ?>€
-                        <span class="text-muted fw-normal" style="font-size: 1rem;">/ personne</span>
+                        <span class="text-muted fw-normal menu-detail-price-unit">/ personne</span>
                     </div>
 
                     <div class="text-white fw-bold mb-3">
@@ -69,7 +69,7 @@ include 'includes/header.php';
                             Commander ce menu
                         </a>
                     <?php else: ?>
-                        <button class="btn-primary w-100 border-0" type="button" disabled style="opacity:.55; cursor:not-allowed;">
+                        <button class="btn-primary w-100 border-0 btn-disabled-stock" type="button" disabled>
                             Stock indisponible
                         </button>
                     <?php endif; ?>
@@ -96,7 +96,7 @@ include 'includes/header.php';
                     <div class="dish-type">
                         <?php echo htmlspecialchars($plat['categorie'] ?? ''); ?>
                     </div>
-                    <div class="text-white fw-bold mt-1" style="font-size:1.1rem;">
+                    <div class="text-white fw-bold mt-1 dish-name">
                         <?php echo htmlspecialchars($plat['nom'] ?? ''); ?>
                     </div>
                 </div>

@@ -764,6 +764,11 @@ textarea.form-control {
   align-self: flex-start;
 }
 
+.menu-tag-regime {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+
 .menu-title {
   font-size: 1.5rem;
   margin-bottom: 0.5rem;
@@ -862,6 +867,28 @@ textarea.form-control {
   z-index: 3;
 }
 
+.menu-detail-description {
+  font-size: 1.1rem;
+  line-height: 1.8;
+}
+
+.menu-order-panel {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.menu-detail-price {
+  font-size: 2.5rem;
+}
+
+.menu-detail-price-unit {
+  font-size: 1rem;
+}
+
+.btn-disabled-stock {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .dish-list {
   list-style: none;
 }
@@ -879,6 +906,10 @@ textarea.form-control {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+.dish-name {
+  font-size: 1.1rem;
 }
 
 .allergens {
