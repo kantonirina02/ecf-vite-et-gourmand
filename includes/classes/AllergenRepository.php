@@ -15,4 +15,28 @@ final class AllergenRepository
 
         return $statement ? $statement->fetchAll(PDO::FETCH_ASSOC) : [];
     }
+
+    public function createIfMissing(string $name): bool
+    {
+        $statement = $this->pdo->prepare("INSERT IGNORE INTO allergene (nom) VALUES (?)");
+
+        return $statement->execute([$name]);
+    }
+
+    public function delete(int $allergenId): void
+    {
+        $this->pdo->beginTransaction();
+
+        try {
+            $this->pdo->prepare("DELETE FROM plat_allergene WHERE id_allergene = ?")->execute([$allergenId]);
+            $this->pdo->prepare("DELETE FROM allergene WHERE id_allergene = ?")->execute([$allergenId]);
+            $this->pdo->commit();
+        } catch (Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $e;
+        }
+    }
 }

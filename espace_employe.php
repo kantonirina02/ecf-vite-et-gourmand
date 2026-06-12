@@ -269,16 +269,6 @@ function sync_menu_plats(PDO $pdo, int $idMenu, array $plats): void
     }
 }
 
-function sync_plat_allergenes(PDO $pdo, int $idPlat, array $allergenes): void
-{
-    $pdo->prepare("DELETE FROM plat_allergene WHERE id_plat = ?")->execute([$idPlat]);
-    $insert = $pdo->prepare("INSERT INTO plat_allergene (id_plat, id_allergene) VALUES (?, ?)");
-
-    foreach ($allergenes as $idAllergene) {
-        $insert->execute([$idPlat, $idAllergene]);
-    }
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_statut_commande'])) {
     $idCmd = (int) $_POST['id_commande'];
     $nouveauStatut = normalize_order_status($_POST['nouveau_statut'] ?? '');
@@ -502,22 +492,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_plat_save'])) 
     }
 
     try {
-        $pdo->beginTransaction();
-
-        if ($idPlat > 0) {
-            $pdo->prepare("UPDATE plat SET nom = ?, categorie = ? WHERE id_plat = ?")->execute([$nom, $categorie, $idPlat]);
-        } else {
-            $pdo->prepare("INSERT INTO plat (nom, categorie) VALUES (?, ?)")->execute([$nom, $categorie]);
-            $idPlat = (int) $pdo->lastInsertId();
-        }
-
-        sync_plat_allergenes($pdo, $idPlat, $allergenesPlat);
-        $pdo->commit();
+        $dishRepository->saveWithAllergens($idPlat, $nom, $categorie, $allergenesPlat);
         $message = "<div class='alert-success'>Plat enregistré.</div>";
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
         error_log($e->getMessage());
         $message = "<div class='alert-error'>Impossible d'enregistrer le plat.</div>";
     }
@@ -527,9 +504,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_plat_delete'])
     $idPlat = (int) $_POST['id_plat'];
 
     try {
-        $pdo->prepare("DELETE FROM menu_plat WHERE id_plat = ?")->execute([$idPlat]);
-        $pdo->prepare("DELETE FROM plat_allergene WHERE id_plat = ?")->execute([$idPlat]);
-        $pdo->prepare("DELETE FROM plat WHERE id_plat = ?")->execute([$idPlat]);
+        $dishRepository->delete($idPlat);
         $message = "<div class='alert-success'>Plat supprimé.</div>";
     } catch (Throwable $e) {
         error_log($e->getMessage());
@@ -541,16 +516,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_allergene_save
     $nom = clean_text_input($_POST['nom_allergene'] ?? '', 100);
 
     if ($nom !== '') {
-        $pdo->prepare("INSERT IGNORE INTO allergene (nom) VALUES (?)")->execute([$nom]);
+        $allergenRepository->createIfMissing($nom);
         $message = "<div class='alert-success'>Allergène enregistré.</div>";
     }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_allergene_delete'])) {
     $idAllergene = (int) $_POST['id_allergene'];
-    $pdo->prepare("DELETE FROM plat_allergene WHERE id_allergene = ?")->execute([$idAllergene]);
-    $pdo->prepare("DELETE FROM allergene WHERE id_allergene = ?")->execute([$idAllergene]);
-    $message = "<div class='alert-success'>Allergène supprimé.</div>";
+
+    try {
+        $allergenRepository->delete($idAllergene);
+        $message = "<div class='alert-success'>Allergène supprimé.</div>";
+    } catch (Throwable $e) {
+        error_log($e->getMessage());
+        $message = "<div class='alert-error'>Impossible de supprimer cet allergène.</div>";
+    }
 }
 
 $statusValues = [];
