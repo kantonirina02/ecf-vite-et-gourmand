@@ -1026,6 +1026,32 @@ textarea.form-control {
   max-width: 300px;
 }
 
+.dashboard-panel-full {
+  grid-column: 1 / -1;
+}
+
+.employee-filter-form {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.employee-filter-field {
+  max-width: 260px;
+}
+
+.status-update-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.allergen-row-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
 .stats-filter-form {
   display: flex;
   gap: 1rem;

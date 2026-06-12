@@ -621,12 +621,12 @@ include 'includes/header.php';
     <?php if(!empty($message)) echo $message; ?>
 
     <div class="dashboard-grid">
-        <div class="glass-panel p-4" style="grid-column: 1 / -1;">
+        <div class="glass-panel p-4 dashboard-panel-full">
             <h4 class="text-white mb-4 border-bottom border-secondary pb-2"><i class="fa-solid fa-bell-concierge"></i> Gestion des Commandes</h4>
 
-            <form method="GET" action="" class="mb-4" style="display:flex; gap:1rem; flex-wrap:wrap;">
+            <form method="GET" action="" class="mb-4 employee-filter-form">
                 <label class="visually-hidden" for="filtre_statut">Filtrer par statut</label>
-                <select id="filtre_statut" name="filtre_statut" class="form-control" style="max-width:260px;">
+                <select id="filtre_statut" name="filtre_statut" class="form-control employee-filter-field">
                     <option value="">Tous les statuts</option>
                     <?php foreach(ORDER_STATUSES as $statut): ?>
                         <option value="<?php echo htmlspecialchars($statut); ?>" <?php echo (normalize_order_status($_GET['filtre_statut'] ?? '') === $statut) ? 'selected' : ''; ?>>
@@ -635,7 +635,7 @@ include 'includes/header.php';
                     <?php endforeach; ?>
                 </select>
                 <label class="visually-hidden" for="filtre_client">Filtrer par client</label>
-                <input id="filtre_client" type="text" name="filtre_client" class="form-control" style="max-width:260px;" placeholder="Client, email..." value="<?php echo htmlspecialchars($_GET['filtre_client'] ?? ''); ?>">
+                <input id="filtre_client" type="text" name="filtre_client" class="form-control employee-filter-field" placeholder="Client, email..." value="<?php echo htmlspecialchars($_GET['filtre_client'] ?? ''); ?>">
                 <button type="submit" class="btn-action-small btn-primary border-0">Filtrer</button>
                 <a href="espace_employe" class="btn-action-small btn-outline">Réinitialiser</a>
             </form>
@@ -665,7 +665,7 @@ include 'includes/header.php';
                                 </td>
                                 <td><span class="badge-status <?php echo order_status_badge_class($cmd['statut']); ?>"><?php echo htmlspecialchars(order_status_label($cmd['statut'])); ?></span></td>
                                 <td>
-                                    <form method="POST" action="" style="display:grid; gap:.5rem;">
+                                    <form method="POST" action="" class="status-update-form">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action_statut_commande" value="1">
                                         <input type="hidden" name="id_commande" value="<?php echo (int)$cmd['id_commande']; ?>">
@@ -693,7 +693,7 @@ include 'includes/header.php';
             </div>
         </div>
 
-        <div class="glass-panel p-4" style="grid-column: 1 / -1;">
+        <div class="glass-panel p-4 dashboard-panel-full">
             <h4 class="text-white mb-4 border-bottom border-secondary pb-2">Gestion des Menus</h4>
             <form method="POST" action="" class="mb-4" enctype="multipart/form-data">
                 <?php echo csrf_field(); ?>
@@ -741,7 +741,7 @@ include 'includes/header.php';
                                 <td><?php echo htmlspecialchars($menu['prix_min']); ?> EUR</td>
                                 <td><?php echo (int)($menu['stock'] ?? 0); ?></td>
                                 <td>
-                                    <form method="POST" action="" style="display:inline;" data-confirm="Supprimer ce menu ?">
+                                    <form method="POST" action="" class="inline-form" data-confirm="Supprimer ce menu ?">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action_menu_delete" value="1">
                                         <input type="hidden" name="id_menu" value="<?php echo (int)$menu['id_menu']; ?>">
@@ -867,7 +867,7 @@ include 'includes/header.php';
                 <button type="submit" name="action_allergene_save" value="1" class="btn-primary border-0">Ajouter</button>
             </form>
             <?php foreach($allergenes as $allergene): ?>
-                <form method="POST" action="" style="display:flex; gap:.5rem; align-items:center; margin-bottom:.5rem;">
+                <form method="POST" action="" class="allergen-row-form">
                     <?php echo csrf_field(); ?>
                     <input type="hidden" name="id_allergene" value="<?php echo (int)$allergene['id_allergene']; ?>">
                     <span><?php echo htmlspecialchars($allergene['nom']); ?></span>
@@ -887,7 +887,7 @@ include 'includes/header.php';
                         <strong class="text-gold"><?php echo htmlspecialchars($avis['nom'] . ' ' . $avis['prenom']); ?></strong>
                         <p class="small text-muted mb-2">Menu : <?php echo htmlspecialchars($avis['menu_titre']); ?></p>
                         <p class="fst-italic mb-3">"<?php echo htmlspecialchars($avis['commentaire']); ?>"</p>
-                        <form method="POST" action="" style="display:inline;">
+                        <form method="POST" action="" class="inline-form">
                             <?php echo csrf_field(); ?>
                             <input type="hidden" name="id_avis" value="<?php echo (int)$avis['id_avis']; ?>">
                             <button type="submit" name="action_avis" value="valider" class="btn-action-small btn-outline text-success border-success">Valider</button>
