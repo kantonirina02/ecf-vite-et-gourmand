@@ -3,9 +3,11 @@ require_once 'includes/security.php';
 require_once 'includes/db.php';
 require_once 'includes/mailer.php';
 require_once 'includes/nosql_stats.php';
+require_once 'includes/classes/UserRepository.php';
 
 require_role(['admin']);
 
+$userRepository = new UserRepository($pdo);
 $message = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -24,16 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_creer_employe'
     } elseif (!preg_match($regex_mdp, $mot_de_passe)) {
         $message = "<div class='alert-error'>Le mot de passe doit contenir 10 caracteres, une majuscule, une minuscule, un chiffre et un caractere special.</div>";
     } else {
-        $check_email = $pdo->prepare("SELECT id_utilisateur FROM utilisateur WHERE email = ?");
-        $check_email->execute([$email]);
-
-        if ($check_email->fetch()) {
+        if ($userRepository->emailExists($email)) {
             $message = "<div class='alert-error'>Cet email est deja utilise.</div>";
         } else {
             $hash = password_hash($mot_de_passe, PASSWORD_DEFAULT);
-            $insert = $pdo->prepare("INSERT INTO utilisateur (nom, prenom, email, mot_de_passe, role, statut_compte) VALUES (?, ?, ?, ?, 'employe', 'actif')");
 
-            if ($insert->execute([$nom, $prenom, $email, $hash])) {
+            if ($userRepository->createEmployee($nom, $prenom, $email, $hash)) {
                 $body = "Bonjour $prenom,\n\nUn compte employe Vite & Gourmand a ete cree pour vous.\n";
                 $body .= "Le mot de passe ne figure pas dans cet email. Rapprochez-vous de l'administrateur pour l'obtenir.\n\n";
                 $body .= "L'equipe Vite & Gourmand.";
@@ -48,14 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_statut'], $_PO
     $id_employe = (int)$_POST['id_employe'];
     $nouveau_statut = $_POST['action_statut'] === 'desactiver' ? 'inactif' : 'actif';
 
-    $update = $pdo->prepare("UPDATE utilisateur SET statut_compte = ? WHERE id_utilisateur = ? AND role = 'employe'");
-    if ($update->execute([$nouveau_statut, $id_employe])) {
+    if ($userRepository->updateEmployeeStatus($id_employe, $nouveau_statut)) {
         $message = "<div class='alert-success'>Le statut de l'employe a ete mis a jour.</div>";
     }
 }
 
-$req_employes = $pdo->query("SELECT * FROM utilisateur WHERE role = 'employe' ORDER BY nom ASC");
-$employes = $req_employes ? $req_employes->fetchAll(PDO::FETCH_ASSOC) : [];
+$employes = $userRepository->findEmployees();
 
 nosql_sync_stats_from_sql($pdo);
 $stats = nosql_read_stats();
