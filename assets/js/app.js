@@ -352,12 +352,54 @@ class OrderSummaryCalculator {
   }
 }
 
+// Remplace les onclick inline : un bouton data-target affiche ou masque une ligne cible.
+class RowVisibilityController {
+  constructor(buttonSelector) {
+    this.buttons = document.querySelectorAll(buttonSelector);
+  }
+
+  init() {
+    this.buttons.forEach((button) => {
+      button.addEventListener('click', () => this.toggleTarget(button));
+    });
+  }
+
+  toggleTarget(button) {
+    const target = document.getElementById(button.dataset.target || '');
+
+    if (!target) {
+      return;
+    }
+
+    target.style.display = button.dataset.display || 'table-row';
+  }
+}
+
+// Remplace les onsubmit inline : les formulaires data-confirm demandent une confirmation.
+class ConfirmSubmitController {
+  constructor(formSelector) {
+    this.forms = document.querySelectorAll(formSelector);
+  }
+
+  init() {
+    this.forms.forEach((form) => {
+      form.addEventListener('submit', (event) => {
+        if (!window.confirm(form.dataset.confirm || 'Confirmer cette action ?')) {
+          event.preventDefault();
+        }
+      });
+    });
+  }
+}
+
 class App {
   init() {
     new MobileNavigation('.mobile-menu-btn', '.nav-links', '.nav-actions').init();
     new MenuFilter('#menus-container').init();
     new AdminStatsChart('#graphiqueCommandes').init();
     new OrderSummaryCalculator('#formCommande').init();
+    new RowVisibilityController('.js-toggle-row').init();
+    new ConfirmSubmitController('form[data-confirm]').init();
   }
 }
 

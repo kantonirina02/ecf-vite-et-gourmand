@@ -247,8 +247,8 @@ include 'includes/header.php';
                                     </td>
                                     <td>
                                         <?php if($statutClean === 'en_attente'): ?>
-                                            <button class="btn-action-small btn-outline" type="button" onclick="document.getElementById('formModifBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'table-row';">Modifier</button>
-                                            <form method="POST" action="" style="display:inline;" onsubmit="return confirm('Êtes-vous sûr de vouloir annuler cette commande ?');">
+                                            <button class="btn-action-small btn-outline js-toggle-row" type="button" data-target="formModifBox<?php echo (int)$cmd['id_commande']; ?>" data-display="table-row">Modifier</button>
+                                            <form method="POST" action="" style="display:inline;" data-confirm="Êtes-vous sûr de vouloir annuler cette commande ?">
                                                 <?php echo csrf_field(); ?>
                                                 <input type="hidden" name="annuler_commande" value="<?php echo (int)$cmd['id_commande']; ?>">
                                                 <button type="submit" class="btn-action-small btn-outline text-danger border-danger">Annuler</button>
@@ -262,14 +262,14 @@ include 'includes/header.php';
                                             $deja_avise = $check_avis->fetch();
                                             ?>
                                             <?php if(!$deja_avise): ?>
-                                                <button class="btn-action-small btn-primary border-0" type="button" onclick="document.getElementById('formAvisBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'table-row';">Laisser un avis</button>
+                                                <button class="btn-action-small btn-primary border-0 js-toggle-row" type="button" data-target="formAvisBox<?php echo (int)$cmd['id_commande']; ?>" data-display="table-row">Laisser un avis</button>
                                             <?php else: ?>
                                                 <span class="text-success small fst-italic"><i class="fa-solid fa-check"></i> Avis déposé</span>
                                             <?php endif; ?>
                                         <?php endif; ?>
 
                                         <?php if(!empty($historiques[$cmd['id_commande']])): ?>
-                                            <button class="btn-action-small btn-outline" type="button" onclick="document.getElementById('suiviBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'table-row';">Suivi</button>
+                                            <button class="btn-action-small btn-outline js-toggle-row" type="button" data-target="suiviBox<?php echo (int)$cmd['id_commande']; ?>" data-display="table-row">Suivi</button>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -288,7 +288,7 @@ include 'includes/header.php';
                                                 </li>
                                             <?php endforeach; ?>
                                         </ul>
-                                        <button class="btn-action-small btn-outline" type="button" onclick="document.getElementById('suiviBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'none';">Fermer</button>
+                                        <button class="btn-action-small btn-outline js-toggle-row" type="button" data-target="suiviBox<?php echo (int)$cmd['id_commande']; ?>" data-display="none">Fermer</button>
                                     </td>
                                 </tr>
 
@@ -323,7 +323,7 @@ include 'includes/header.php';
                                             <textarea name="lieu_prestation" class="form-control" required><?php echo htmlspecialchars($cmd['lieu_prestation']); ?></textarea>
 
                                             <div class="form-actions">
-                                                <button type="button" class="btn-action-small btn-outline" onclick="document.getElementById('formModifBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'none';">Fermer</button>
+                                                <button type="button" class="btn-action-small btn-outline js-toggle-row" data-target="formModifBox<?php echo (int)$cmd['id_commande']; ?>" data-display="none">Fermer</button>
                                                 <button type="submit" class="btn-action-small btn-primary border-0">Enregistrer</button>
                                             </div>
                                         </form>
@@ -350,7 +350,7 @@ include 'includes/header.php';
                                             <textarea name="commentaire" class="form-control" required rows="4"></textarea>
 
                                             <div class="form-actions">
-                                                <button type="button" class="btn-action-small btn-outline" onclick="document.getElementById('formAvisBox<?php echo (int)$cmd['id_commande']; ?>').style.display = 'none';">Annuler</button>
+                                                <button type="button" class="btn-action-small btn-outline js-toggle-row" data-target="formAvisBox<?php echo (int)$cmd['id_commande']; ?>" data-display="none">Annuler</button>
                                                 <button type="submit" class="btn-action-small btn-primary border-0">Envoyer l'avis</button>
                                             </div>
                                         </form>
