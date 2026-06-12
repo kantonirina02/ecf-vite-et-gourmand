@@ -750,7 +750,7 @@ include 'includes/header.php';
                                 </td>
                             </tr>
                             <tr>
-                                <td colspan="5" style="background:rgba(255,255,255,0.03);">
+                                <td colspan="5" class="menu-edit-cell">
                                     <form method="POST" action="" enctype="multipart/form-data">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action_menu_save" value="1">
@@ -760,18 +760,18 @@ include 'includes/header.php';
                                         <label class="form-label">Image principale</label>
                                         <?php if(!empty($menu['image'])): ?>
                                             <div class="mb-2">
-                                                <img src="assets/images/<?php echo htmlspecialchars(basename($menu['image'])); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - image principale'); ?>" style="width:90px;height:70px;object-fit:cover;border-radius:8px;">
+                                                <img src="assets/images/<?php echo htmlspecialchars(basename($menu['image'])); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - image principale'); ?>" class="menu-main-thumb">
                                             </div>
                                         <?php endif; ?>
                                         <input type="file" name="image_principale" class="form-control" accept="image/jpeg,image/png,image/webp,image/avif">
                                         <label class="form-label">Galerie d'images</label>
                                         <?php if(!empty($selectedImages)): ?>
-                                            <div class="mb-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;">
+                                            <div class="mb-3 menu-gallery-editor">
                                                 <?php foreach($selectedImages as $imageExistante): ?>
                                                     <?php $imageExistante = basename($imageExistante); ?>
-                                                    <label style="display:flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.04);padding:.5rem;border-radius:8px;">
+                                                    <label class="menu-gallery-option">
                                                         <input type="checkbox" name="images_galerie_existantes[]" value="<?php echo htmlspecialchars($imageExistante); ?>" checked>
-                                                        <img src="assets/images/<?php echo htmlspecialchars($imageExistante); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - galerie'); ?>" style="width:56px;height:42px;object-fit:cover;border-radius:6px;">
+                                                        <img src="assets/images/<?php echo htmlspecialchars($imageExistante); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - galerie'); ?>" class="menu-gallery-thumb">
                                                         <span class="small text-muted"><?php echo htmlspecialchars($imageExistante); ?></span>
                                                     </label>
                                                 <?php endforeach; ?>
