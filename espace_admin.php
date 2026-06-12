@@ -151,7 +151,7 @@ include 'includes/header.php';
                                     </td>
                                     <td>
                                         <?php if(($emp['statut_compte'] ?? 'actif') === 'actif'): ?>
-                                            <form method="POST" action="" style="display:inline;" onsubmit="return confirm('Rendre ce compte inutilisable ?');">
+                                            <form method="POST" action="" style="display:inline;" data-confirm="Rendre ce compte inutilisable ?">
                                                 <?php echo csrf_field(); ?>
                                                 <input type="hidden" name="id_employe" value="<?php echo (int)$emp['id_utilisateur']; ?>">
                                                 <button type="submit" name="action_statut" value="desactiver" class="btn-action-small btn-outline text-danger border-danger">Desactiver</button>
