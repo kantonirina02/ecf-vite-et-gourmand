@@ -2,17 +2,14 @@
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/classes/MenuRepository.php';
 
 try {
-    $requete = $pdo->query("
-        SELECT id_menu, titre, description, image, theme, regime, nb_personnes_min, prix_min, stock
-        FROM menu
-        ORDER BY id_menu ASC
-    ");
+    $menuRepository = new MenuRepository($pdo);
 
     echo json_encode([
         'success' => true,
-        'data' => $requete->fetchAll(PDO::FETCH_ASSOC),
+        'data' => $menuRepository->findAllForCatalog(),
     ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 } catch (Throwable $e) {
     error_log($e->getMessage());
