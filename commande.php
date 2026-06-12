@@ -154,7 +154,9 @@ include 'includes/header.php';
 
     <?php if(!empty($message)) echo $message; ?>
 
-    <form method="POST" action="" id="formCommande">
+    <form method="POST" action="" id="formCommande"
+          data-unit-price="<?php echo htmlspecialchars((string) (float) $menu['prix_min'], ENT_QUOTES, 'UTF-8'); ?>"
+          data-min-people="<?php echo (int) $menu['nb_personnes_min']; ?>">
         <?php echo csrf_field(); ?>
         <div class="row g-5">
 
@@ -261,58 +263,5 @@ include 'includes/header.php';
         </div>
     </form>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const prixUnitaire = <?php echo json_encode((float)$menu['prix_min']); ?>;
-    const minPersonnes = <?php echo json_encode((int)$menu['nb_personnes_min']); ?>;
-    const inputPersonnes = document.getElementById('inputPersonnes');
-    const checkHorsBordeaux = document.getElementById('checkHorsBordeaux');
-    const divDistance = document.getElementById('divDistance');
-    const inputDistance = document.getElementById('inputDistance');
-    const recapNb = document.getElementById('recapNb');
-    const recapMenuPrix = document.getElementById('recapMenuPrix');
-    const divReduction = document.getElementById('divReduction');
-    const recapReduction = document.getElementById('recapReduction');
-    const divLivraison = document.getElementById('divLivraison');
-    const recapLivraison = document.getElementById('recapLivraison');
-    const recapTotal = document.getElementById('recapTotal');
-
-    function formatEUR(value) {
-        return value.toFixed(2) + ' EUR';
-    }
-
-    function calculerPrix() {
-        let nb = parseInt(inputPersonnes.value, 10) || minPersonnes;
-        if (nb < minPersonnes) nb = minPersonnes;
-
-        const prixMenuBase = nb * prixUnitaire;
-        const reduction = nb >= (minPersonnes + 5) ? prixMenuBase * 0.10 : 0;
-        let livraison = 0;
-
-        if (checkHorsBordeaux.checked) {
-            divDistance.style.display = 'block';
-            const km = parseFloat(inputDistance.value) || 0;
-            livraison = km > 0 ? 5 + (0.59 * km) : 0;
-            divLivraison.style.display = 'flex';
-        } else {
-            divDistance.style.display = 'none';
-            divLivraison.style.display = 'none';
-        }
-
-        divReduction.style.display = reduction > 0 ? 'flex' : 'none';
-        recapNb.textContent = nb;
-        recapMenuPrix.textContent = formatEUR(prixMenuBase);
-        recapReduction.textContent = '-' + formatEUR(reduction);
-        recapLivraison.textContent = '+' + formatEUR(livraison);
-        recapTotal.textContent = formatEUR(prixMenuBase - reduction + livraison);
-    }
-
-    inputPersonnes.addEventListener('input', calculerPrix);
-    checkHorsBordeaux.addEventListener('change', calculerPrix);
-    inputDistance.addEventListener('input', calculerPrix);
-    calculerPrix();
-});
-</script>
 
 <?php include 'includes/footer.php'; ?>

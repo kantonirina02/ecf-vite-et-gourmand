@@ -265,11 +265,99 @@ class AdminStatsChart {
   }
 }
 
+// Calcule le recapitulatif visuel de commande depuis les donnees fournies par commande.php.
+class OrderSummaryCalculator {
+  constructor(formSelector) {
+    this.form = document.querySelector(formSelector);
+    this.unitPrice = Number(this.form?.dataset.unitPrice || 0);
+    this.minimumPeople = parseInt(this.form?.dataset.minPeople, 10) || 0;
+    this.elements = {
+      peopleInput: document.getElementById('inputPersonnes'),
+      outsideBordeauxInput: document.getElementById('checkHorsBordeaux'),
+      distanceWrapper: document.getElementById('divDistance'),
+      distanceInput: document.getElementById('inputDistance'),
+      recapPeople: document.getElementById('recapNb'),
+      recapMenuPrice: document.getElementById('recapMenuPrix'),
+      discountWrapper: document.getElementById('divReduction'),
+      recapDiscount: document.getElementById('recapReduction'),
+      deliveryWrapper: document.getElementById('divLivraison'),
+      recapDelivery: document.getElementById('recapLivraison'),
+      recapTotal: document.getElementById('recapTotal'),
+    };
+  }
+
+  init() {
+    if (!this.form || !this.elements.peopleInput) {
+      return;
+    }
+
+    this.bindEvents();
+    this.render();
+  }
+
+  bindEvents() {
+    this.elements.peopleInput?.addEventListener('input', () => this.render());
+    this.elements.outsideBordeauxInput?.addEventListener('change', () => this.render());
+    this.elements.distanceInput?.addEventListener('input', () => this.render());
+  }
+
+  calculate() {
+    const people = Math.max(
+      parseInt(this.elements.peopleInput?.value, 10) || this.minimumPeople,
+      this.minimumPeople,
+    );
+    const menuPrice = people * this.unitPrice;
+    const discount = people >= (this.minimumPeople + 5) ? menuPrice * 0.10 : 0;
+    const isOutsideBordeaux = Boolean(this.elements.outsideBordeauxInput?.checked);
+    const distanceKm = parseFloat(this.elements.distanceInput?.value) || 0;
+    const deliveryPrice = isOutsideBordeaux && distanceKm > 0 ? 5 + (0.59 * distanceKm) : 0;
+
+    return {
+      people,
+      menuPrice,
+      discount,
+      deliveryPrice,
+      total: menuPrice - discount + deliveryPrice,
+      isOutsideBordeaux,
+    };
+  }
+
+  render() {
+    const price = this.calculate();
+
+    this.toggle(this.elements.distanceWrapper, price.isOutsideBordeaux, 'block');
+    this.toggle(this.elements.deliveryWrapper, price.isOutsideBordeaux, 'flex');
+    this.toggle(this.elements.discountWrapper, price.discount > 0, 'flex');
+    this.setText(this.elements.recapPeople, String(price.people));
+    this.setText(this.elements.recapMenuPrice, this.formatEUR(price.menuPrice));
+    this.setText(this.elements.recapDiscount, `-${this.formatEUR(price.discount)}`);
+    this.setText(this.elements.recapDelivery, `+${this.formatEUR(price.deliveryPrice)}`);
+    this.setText(this.elements.recapTotal, this.formatEUR(price.total));
+  }
+
+  formatEUR(value) {
+    return `${value.toFixed(2)} EUR`;
+  }
+
+  setText(element, value) {
+    if (element) {
+      element.textContent = value;
+    }
+  }
+
+  toggle(element, isVisible, displayValue) {
+    if (element) {
+      element.style.display = isVisible ? displayValue : 'none';
+    }
+  }
+}
+
 class App {
   init() {
     new MobileNavigation('.mobile-menu-btn', '.nav-links', '.nav-actions').init();
     new MenuFilter('#menus-container').init();
     new AdminStatsChart('#graphiqueCommandes').init();
+    new OrderSummaryCalculator('#formCommande').init();
   }
 }
 
