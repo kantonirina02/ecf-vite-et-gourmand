@@ -46,6 +46,14 @@ final class MenuRepository
         return $statement->rowCount() === 1;
     }
 
+    public function increaseStock(int $idMenu): bool
+    {
+        $statement = $this->pdo->prepare("UPDATE menu SET stock = stock + 1 WHERE id_menu = ?");
+        $statement->execute([$idMenu]);
+
+        return $statement->rowCount() === 1;
+    }
+
     public function findDishesWithAllergens(int $idMenu): array
     {
         $statement = $this->pdo->prepare("

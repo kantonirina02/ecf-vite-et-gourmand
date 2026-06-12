@@ -4,6 +4,9 @@ require_once 'includes/db.php';
 require_once 'includes/order_history.php';
 require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
+require_once 'includes/classes/MenuRepository.php';
+require_once 'includes/classes/OrderPriceCalculator.php';
+require_once 'includes/classes/OrderRepository.php';
 require_once 'includes/classes/UserRepository.php';
 
 if (!isset($_SESSION['user_id'])) {
@@ -12,6 +15,9 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $id_user = (int) $_SESSION['user_id'];
+$menuRepository = new MenuRepository($pdo);
+$orderRepository = new OrderRepository($pdo);
+$priceCalculator = new OrderPriceCalculator();
 $userRepository = new UserRepository($pdo);
 $message = "";
 $date_min_prestation = date('Y-m-d', strtotime('+3 days'));
@@ -43,16 +49,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['annuler_commande'])) 
         ensure_order_history_table($pdo);
         $pdo->beginTransaction();
 
-        $verif = $pdo->prepare("SELECT id_commande, id_menu, statut FROM commande WHERE id_commande = ? AND id_utilisateur = ? FOR UPDATE");
-        $verif->execute([$idCmd, $id_user]);
-        $commande = $verif->fetch(PDO::FETCH_ASSOC);
+        $commande = $orderRepository->findUserOrderForUpdate($idCmd, $id_user);
 
         if (!$commande || !order_status_is_waiting($commande['statut'])) {
             throw new RuntimeException('Cette commande ne peut plus être annulée.');
         }
 
-        $pdo->prepare("UPDATE commande SET statut = 'annulee' WHERE id_commande = ? AND id_utilisateur = ?")->execute([$idCmd, $id_user]);
-        $pdo->prepare("UPDATE menu SET stock = stock + 1 WHERE id_menu = ?")->execute([(int) $commande['id_menu']]);
+        if (!$orderRepository->cancelForUser($idCmd, $id_user)) {
+            throw new RuntimeException('Cette commande ne peut plus être annulée.');
+        }
+
+        if (!$menuRepository->increaseStock((int) $commande['id_menu'])) {
+            throw new RuntimeException('Le menu associé est introuvable.');
+        }
+
         add_order_history($pdo, $idCmd, 'annulee', 'Commande annulée par le client.');
 
         $pdo->commit();
@@ -87,14 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_modifier_comma
         $message = "<div class='alert-error'>La distance hors Bordeaux doit être supérieure à 0 km.</div>";
     } else {
         try {
-            $req = $pdo->prepare("
-                SELECT c.*, m.prix_min, m.nb_personnes_min
-                FROM commande c
-                JOIN menu m ON c.id_menu = m.id_menu
-                WHERE c.id_commande = ? AND c.id_utilisateur = ?
-            ");
-            $req->execute([$idCmd, $id_user]);
-            $commande = $req->fetch(PDO::FETCH_ASSOC);
+            $commande = $orderRepository->findEditableUserOrder($idCmd, $id_user);
 
             if (!$commande || !order_status_is_waiting($commande['statut'])) {
                 throw new RuntimeException('Cette commande ne peut plus être modifiée.');
@@ -104,21 +107,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_modifier_comma
                 throw new RuntimeException('Le nombre de personnes est inférieur au minimum du menu.');
             }
 
-            $prixMenuTotal = (float) $commande['prix_min'] * $nbPersonnes;
+            $priceDetails = $priceCalculator->calculate(
+                (float) $commande['prix_min'],
+                (int) $commande['nb_personnes_min'],
+                $nbPersonnes,
+                $horsBordeaux,
+                $distanceKm
+            );
+            $prixTotal = $priceDetails['total'];
 
-            if ($nbPersonnes >= ((int) $commande['nb_personnes_min'] + 5)) {
-                $prixMenuTotal *= 0.90;
-            }
-
-            $fraisLivraison = $horsBordeaux ? 5 + (0.59 * $distanceKm) : 0;
-            $prixTotal = round($prixMenuTotal + $fraisLivraison, 2);
-
-            $update = $pdo->prepare("
-                UPDATE commande
-                SET date_prestation = ?, heure_prestation = ?, lieu_prestation = ?, nb_personnes = ?, prix_total = ?
-                WHERE id_commande = ? AND id_utilisateur = ?
-            ");
-            $update->execute([$datePrestation, $heurePrestation, $lieuPrestation, $nbPersonnes, $prixTotal, $idCmd, $id_user]);
+            $orderRepository->updateForUser(
+                $idCmd,
+                $id_user,
+                $datePrestation,
+                $heurePrestation,
+                $lieuPrestation,
+                $nbPersonnes,
+                $prixTotal
+            );
 
             add_order_history($pdo, $idCmd, 'modifiee', 'Commande modifiée par le client.');
             nosql_sync_stats_from_sql($pdo);
@@ -134,17 +140,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_avis'])) {
     $note = max(1, min(5, (int) ($_POST['note'] ?? 1)));
     $commentaire = trim($_POST['commentaire'] ?? '');
 
-    $verif = $pdo->prepare("SELECT statut FROM commande WHERE id_commande = ? AND id_utilisateur = ?");
-    $verif->execute([$idCmd, $id_user]);
-    $commande = $verif->fetch(PDO::FETCH_ASSOC);
+    $statutCommande = $orderRepository->findUserOrderStatus($idCmd, $id_user);
 
-    if ($commande && order_status_is_finished($commande['statut']) && $commentaire !== '') {
-        $check = $pdo->prepare("SELECT id_avis FROM avis WHERE id_commande = ?");
-        $check->execute([$idCmd]);
-
-        if (!$check->fetch()) {
-            $insert = $pdo->prepare("INSERT INTO avis (note, commentaire, statut, id_utilisateur, id_commande) VALUES (?, ?, 'en attente', ?, ?)");
-            $insert->execute([$note, $commentaire, $id_user, $idCmd]);
+    if ($statutCommande && order_status_is_finished($statutCommande) && $commentaire !== '') {
+        if (!$orderRepository->hasReview($idCmd)) {
+            $orderRepository->createReview($idCmd, $id_user, $note, $commentaire);
             $message = "<div class='alert-success'>Merci pour votre avis. Il sera visible après validation.</div>";
         }
     }
@@ -157,28 +157,12 @@ if (!$user) {
     exit;
 }
 
-$req_orders = $pdo->prepare("
-    SELECT c.*, m.titre as menu_titre
-    FROM commande c
-    JOIN menu m ON c.id_menu = m.id_menu
-    WHERE c.id_utilisateur = ?
-    ORDER BY c.date_prestation DESC
-");
-$req_orders->execute([$id_user]);
-$commandes = $req_orders->fetchAll(PDO::FETCH_ASSOC);
+$commandes = $orderRepository->findByUser($id_user);
 
 ensure_order_history_table($pdo);
-$historiques = [];
-if (!empty($commandes)) {
-    $ids = array_column($commandes, 'id_commande');
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $req_hist = $pdo->prepare("SELECT * FROM commande_statut_historique WHERE id_commande IN ($placeholders) ORDER BY date_modification ASC");
-    $req_hist->execute($ids);
-
-    foreach ($req_hist->fetchAll(PDO::FETCH_ASSOC) as $hist) {
-        $historiques[$hist['id_commande']][] = $hist;
-    }
-}
+$idsCommandes = array_column($commandes, 'id_commande');
+$historiques = $orderRepository->findHistoriesByOrderIds($idsCommandes);
+$avisParCommande = $orderRepository->findReviewedOrderIds($idsCommandes);
 
 include 'includes/header.php';
 ?>
@@ -260,11 +244,7 @@ include 'includes/header.php';
                                         <?php endif; ?>
 
                                         <?php if($statutClean === 'terminee'): ?>
-                                            <?php
-                                            $check_avis = $pdo->prepare("SELECT id_avis FROM avis WHERE id_commande = ?");
-                                            $check_avis->execute([$cmd['id_commande']]);
-                                            $deja_avise = $check_avis->fetch();
-                                            ?>
+                                            <?php $deja_avise = !empty($avisParCommande[(int) $cmd['id_commande']]); ?>
                                             <?php if(!$deja_avise): ?>
                                                 <button class="btn-action-small btn-primary border-0 js-toggle-row" type="button" data-target="formAvisBox<?php echo (int)$cmd['id_commande']; ?>" data-display="table-row">Laisser un avis</button>
                                             <?php else: ?>
