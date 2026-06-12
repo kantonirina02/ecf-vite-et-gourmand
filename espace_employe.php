@@ -167,38 +167,12 @@ function posted_image_names(string $field): array
     return array_values(array_unique($images));
 }
 
-function menu_all_image_files(PDO $pdo, int $idMenu): array
-{
-    $images = [];
-
-    $stmt = $pdo->prepare("SELECT image FROM menu WHERE id_menu = ?");
-    $stmt->execute([$idMenu]);
-    $mainImage = $stmt->fetchColumn();
-
-    if ($mainImage) {
-        $images[] = basename((string) $mainImage);
-    }
-
-    $stmt = $pdo->prepare("SELECT chemin FROM menu_image WHERE id_menu = ?");
-    $stmt->execute([$idMenu]);
-
-    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $image) {
-        $image = basename((string) $image);
-
-        if ($image !== '') {
-            $images[] = $image;
-        }
-    }
-
-    return array_values(array_unique($images));
-}
-
 function is_managed_menu_image(string $image): bool
 {
     return (bool) preg_match('/^menu_[0-9]{8}_[0-9]{6}_[a-f0-9]{16}\.(jpg|png|webp|avif)$/', basename($image));
 }
 
-function delete_uploaded_menu_image_if_unused(PDO $pdo, string $image): void
+function delete_uploaded_menu_image_if_unused(MenuRepository $menuRepository, string $image): void
 {
     $image = basename($image);
 
@@ -206,14 +180,7 @@ function delete_uploaded_menu_image_if_unused(PDO $pdo, string $image): void
         return;
     }
 
-    $stmt = $pdo->prepare("
-        SELECT
-            (SELECT COUNT(*) FROM menu WHERE image = ?)
-            + (SELECT COUNT(*) FROM menu_image WHERE chemin = ?) AS total_refs
-    ");
-    $stmt->execute([$image, $image]);
-
-    if ((int) $stmt->fetchColumn() > 0) {
+    if ($menuRepository->isImageReferenced($image)) {
         return;
     }
 
@@ -224,48 +191,10 @@ function delete_uploaded_menu_image_if_unused(PDO $pdo, string $image): void
     }
 }
 
-function delete_uploaded_menu_images_if_unused(PDO $pdo, array $images): void
+function delete_uploaded_menu_images_if_unused(MenuRepository $menuRepository, array $images): void
 {
     foreach (array_unique(array_map('basename', $images)) as $image) {
-        delete_uploaded_menu_image_if_unused($pdo, $image);
-    }
-}
-
-function sync_menu_images(PDO $pdo, int $idMenu, string $mainImage, array $galleryImages): void
-{
-    $images = [];
-
-    foreach ($galleryImages as $image) {
-        $image = basename((string) $image);
-
-        if ($image !== '') {
-            $images[] = $image;
-        }
-    }
-
-    if ($mainImage !== '' && !in_array($mainImage, $images, true)) {
-        array_unshift($images, $mainImage);
-    }
-
-    $images = array_values(array_unique($images));
-
-    $pdo->prepare("DELETE FROM menu_image WHERE id_menu = ?")->execute([$idMenu]);
-    $insert = $pdo->prepare("INSERT INTO menu_image (chemin, id_menu) VALUES (?, ?)");
-
-    foreach ($images as $image) {
-        if ($image !== '') {
-            $insert->execute([$image, $idMenu]);
-        }
-    }
-}
-
-function sync_menu_plats(PDO $pdo, int $idMenu, array $plats): void
-{
-    $pdo->prepare("DELETE FROM menu_plat WHERE id_menu = ?")->execute([$idMenu]);
-    $insert = $pdo->prepare("INSERT INTO menu_plat (id_menu, id_plat) VALUES (?, ?)");
-
-    foreach ($plats as $idPlat) {
-        $insert->execute([$idMenu, $idPlat]);
+        delete_uploaded_menu_image_if_unused($menuRepository, $image);
     }
 }
 
@@ -375,16 +304,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_save'])) 
 
     try {
         if ($idMenu > 0) {
-            $reqMenu = $pdo->prepare("SELECT * FROM menu WHERE id_menu = ?");
-            $reqMenu->execute([$idMenu]);
-            $menuActuel = $reqMenu->fetch(PDO::FETCH_ASSOC);
+            $menuActuel = $menuRepository->findById($idMenu);
 
             if (!$menuActuel) {
                 throw new RuntimeException('Menu introuvable.');
             }
 
             $image = basename((string) $menuActuel['image']);
-            $anciennesImages = menu_all_image_files($pdo, $idMenu);
+            $anciennesImages = $menuRepository->findAllImageFiles($idMenu);
         } else {
             $image = '';
         }
@@ -408,42 +335,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_save'])) 
 
         $imagesGalerie = array_merge($imagesGalerieExistantes, $nouvellesImagesGalerie);
 
-        $pdo->beginTransaction();
-
-        if ($idMenu > 0) {
-            $stmt = $pdo->prepare("
-                UPDATE menu
-                SET titre = ?, image = ?, description = ?, theme = ?, nb_personnes_min = ?, prix_min = ?, conditions = ?, regime = ?, stock = ?
-                WHERE id_menu = ?
-            ");
-            $stmt->execute([$titre, $image, $description, $theme, $nbMin, $prixMin, $conditions, $regime, $stock, $idMenu]);
-        } else {
-            $stmt = $pdo->prepare("
-                INSERT INTO menu (titre, image, description, theme, nb_personnes_min, prix_min, conditions, regime, stock)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([$titre, $image, $description, $theme, $nbMin, $prixMin, $conditions, $regime, $stock]);
-            $idMenu = (int) $pdo->lastInsertId();
-        }
-
-        sync_menu_images($pdo, $idMenu, $image, $imagesGalerie);
-        sync_menu_plats($pdo, $idMenu, $platsMenu);
-        $pdo->commit();
+        $idMenu = $menuRepository->saveWithRelations(
+            $idMenu,
+            $titre,
+            $image,
+            $description,
+            $theme,
+            $nbMin,
+            $prixMin,
+            $conditions,
+            $regime,
+            $stock,
+            $platsMenu,
+            $imagesGalerie
+        );
 
         try {
-            delete_uploaded_menu_images_if_unused($pdo, $anciennesImages);
+            delete_uploaded_menu_images_if_unused($menuRepository, $anciennesImages);
         } catch (Throwable $cleanupError) {
             error_log($cleanupError->getMessage());
         }
 
         $message = "<div class='alert-success'>Menu enregistré.</div>";
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-
         try {
-            delete_uploaded_menu_images_if_unused($pdo, $imagesUploadees);
+            delete_uploaded_menu_images_if_unused($menuRepository, $imagesUploadees);
         } catch (Throwable $cleanupError) {
             error_log($cleanupError->getMessage());
         }
@@ -455,26 +371,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_save'])) 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_delete'])) {
     $idMenu = (int) $_POST['id_menu'];
-    $imagesASupprimer = menu_all_image_files($pdo, $idMenu);
+    $imagesASupprimer = $menuRepository->findAllImageFiles($idMenu);
 
     try {
-        $pdo->beginTransaction();
-        $pdo->prepare("DELETE FROM menu_image WHERE id_menu = ?")->execute([$idMenu]);
-        $pdo->prepare("DELETE FROM menu_plat WHERE id_menu = ?")->execute([$idMenu]);
-        $pdo->prepare("DELETE FROM menu WHERE id_menu = ?")->execute([$idMenu]);
-        $pdo->commit();
+        $menuRepository->deleteWithRelations($idMenu);
 
         try {
-            delete_uploaded_menu_images_if_unused($pdo, $imagesASupprimer);
+            delete_uploaded_menu_images_if_unused($menuRepository, $imagesASupprimer);
         } catch (Throwable $cleanupError) {
             error_log($cleanupError->getMessage());
         }
         $message = "<div class='alert-success'>Menu supprimé.</div>";
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-
         error_log($e->getMessage());
         $message = "<div class='alert-error'>Impossible de supprimer ce menu car il est peut-être lié à une commande.</div>";
     }
