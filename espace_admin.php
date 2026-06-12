@@ -191,8 +191,16 @@ include 'includes/header.php';
                 <?php if(empty($stats_filtrees)): ?>
                     <div class="alert-waiting text-center p-3 border border-warning text-warning bg-transparent rounded">Aucune donnee statistique trouvee. Les statistiques se rempliront apres les nouvelles commandes.</div>
                 <?php else: ?>
+                    <?php
+                    $stats_api_query = http_build_query(array_filter([
+                        'stats_menu' => $filtre_menu,
+                        'date_debut' => $date_debut,
+                        'date_fin' => $date_fin,
+                    ], fn($value) => $value !== ''));
+                    $stats_api_url = 'api/admin_stats.php' . ($stats_api_query !== '' ? '?' . $stats_api_query : '');
+                    ?>
                     <div class="p-3 bg-white rounded shadow-sm">
-                        <canvas id="graphiqueCommandes" height="100"></canvas>
+                        <canvas id="graphiqueCommandes" height="100" data-api-url="<?php echo htmlspecialchars($stats_api_url, ENT_QUOTES, 'UTF-8'); ?>"></canvas>
                     </div>
                     <div class="table-responsive mt-4">
                         <table class="custom-table">
@@ -208,29 +216,7 @@ include 'includes/header.php';
                             </tbody>
                         </table>
                     </div>
-
                     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-                    <script>
-                        const labelsMenus = <?php echo json_encode(array_column($stats_filtrees, 'nom_menu'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
-                        const dataCommandes = <?php echo json_encode(array_column($stats_filtrees, 'nombre_commandes'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
-                        const ctx = document.getElementById('graphiqueCommandes').getContext('2d');
-
-                        new Chart(ctx, {
-                            type: 'bar',
-                            data: {
-                                labels: labelsMenus,
-                                datasets: [{
-                                    label: 'Nombre de commandes par menu',
-                                    data: dataCommandes,
-                                    backgroundColor: 'rgba(245, 158, 11, 0.8)',
-                                    borderColor: 'rgb(245, 158, 11)',
-                                    borderWidth: 1,
-                                    borderRadius: 4
-                                }]
-                            },
-                            options: { responsive: true, scales: { y: { beginAtZero: true } } }
-                        });
-                    </script>
                 <?php endif; ?>
             </div>
         </div>

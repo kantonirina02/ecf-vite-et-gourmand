@@ -48,20 +48,6 @@
     </footer>
   </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const btnBurger = document.querySelector('.mobile-menu-btn');
-      const navLinks = document.querySelector('.nav-links');
-      const navActions = document.querySelector('.nav-actions');
-
-      if(btnBurger && navLinks) {
-          btnBurger.addEventListener('click', () => {
-              navLinks.classList.toggle('active');
-              if(navActions) navActions.classList.toggle('active');
-              btnBurger.setAttribute('aria-expanded', navLinks.classList.contains('active') ? 'true' : 'false');
-          });
-      }
-    });
-  </script>
+  <script src="assets/js/app.js" defer></script>
 </body>
 </html>
