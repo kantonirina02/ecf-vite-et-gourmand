@@ -3,31 +3,31 @@ require_once 'includes/db.php';
 include 'includes/header.php';
 ?>
 
-<div style="background: var(--bg-darker); padding: 4rem 2rem 2rem; text-align:center;">
-  <h1 class="section-title" style="margin-bottom:0">Notre Carte</h1>
-  <p style="color:var(--text-muted); max-width:600px; margin:2rem auto 0;">
+<div class="menus-hero">
+  <h1 class="section-title section-title-compact">Notre Carte</h1>
+  <p class="menus-hero-text">
     Découvrez l'ensemble de nos créations culinaires. Utilisez les filtres pour trouver le menu parfaitement adapté à vos envies et à vos convives.
   </p>
 </div>
 
 <div class="menus-layout">
   <aside class="filters-panel glass-panel">
-    <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 1rem;">
+    <h3 class="filters-title">
       <i class="fa-solid fa-filter"></i> Filtres
     </h3>
 
     <div class="filter-group">
-      <label style="color: var(--gold-primary); margin-bottom: 0.5rem; display:block; font-weight: 500;">Fourchette de prix</label>
+      <label class="filter-highlight-label">Fourchette de prix</label>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+      <div class="filter-inline-row filter-inline-row-center">
         <span class="text-secondary small">Prix Min.</span>
-        <input type="number" id="filter-price-min" min="0" value="0" style="width: 80px; padding: 0.4rem; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; border-radius: 4px;">
+        <input type="number" id="filter-price-min" class="filter-price-input" min="0" value="0">
       </div>
 
-      <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+      <div class="filter-inline-row">
         <span class="text-secondary small">Prix Max. (<span id="price-val">200</span>€)</span>
       </div>
-      <input type="range" id="filter-price-max" min="0" max="300" value="200" step="5" style="width: 100%;">
+      <input type="range" id="filter-price-max" min="0" max="300" value="200" step="5">
     </div>
 
     <div class="filter-group">

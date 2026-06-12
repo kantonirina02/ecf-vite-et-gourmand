@@ -593,6 +593,22 @@ textarea.form-control {
   width: 100%;
 }
 /* Menus View */
+.menus-hero {
+  background: var(--bg-darker);
+  padding: 4rem 2rem 2rem;
+  text-align: center;
+}
+
+.section-title-compact {
+  margin-bottom: 0;
+}
+
+.menus-hero-text {
+  color: var(--text-muted);
+  max-width: 600px;
+  margin: 2rem auto 0;
+}
+
 .menus-layout {
   display: grid;
   grid-template-columns: 300px 1fr;
@@ -610,6 +626,34 @@ textarea.form-control {
 
 .filter-group {
   margin-bottom: 1.5rem;
+}
+
+.filters-title {
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 1rem;
+}
+
+.filter-highlight-label {
+  color: var(--gold-primary);
+  margin-bottom: 0.5rem;
+  display: block;
+  font-weight: 500;
+}
+
+.filter-inline-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.filter-inline-row-center {
+  align-items: center;
+}
+
+.filter-price-input {
+  width: 80px !important;
+  padding: 0.4rem !important;
 }
 
 .filter-group label {
