@@ -184,6 +184,68 @@ final class OrderRepository
         return $reviewedOrderIds;
     }
 
+    public function findForEmployeeStatusUpdate(int $orderId): ?array
+    {
+        $statement = $this->pdo->prepare("
+            SELECT c.*, u.email, u.prenom, m.titre
+            FROM commande c
+            JOIN utilisateur u ON c.id_utilisateur = u.id_utilisateur
+            JOIN menu m ON c.id_menu = m.id_menu
+            WHERE c.id_commande = ?
+            FOR UPDATE
+        ");
+        $statement->execute([$orderId]);
+        $order = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $order ?: null;
+    }
+
+    public function updateStatus(int $orderId, string $status): bool
+    {
+        $statement = $this->pdo->prepare("UPDATE commande SET statut = ? WHERE id_commande = ?");
+
+        return $statement->execute([$status, $orderId]);
+    }
+
+    public function findForEmployeeBoard(array $statusValues, string $clientSearch): array
+    {
+        $where = [];
+        $params = [];
+
+        if ($statusValues !== []) {
+            $where[] = "c.statut IN (" . implode(',', array_fill(0, count($statusValues), '?')) . ")";
+            foreach ($statusValues as $statusValue) {
+                $params[] = $statusValue;
+            }
+        }
+
+        if ($clientSearch !== '') {
+            $where[] = "(u.nom LIKE ? OR u.prenom LIKE ? OR u.email LIKE ?)";
+            $search = '%' . $clientSearch . '%';
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+        }
+
+        $sql = "
+            SELECT c.*, m.titre as menu_titre, u.nom, u.prenom, u.gsm, u.email
+            FROM commande c
+            JOIN menu m ON c.id_menu = m.id_menu
+            JOIN utilisateur u ON c.id_utilisateur = u.id_utilisateur
+        ";
+
+        if ($where !== []) {
+            $sql .= " WHERE " . implode(" AND ", $where);
+        }
+
+        $sql .= " ORDER BY c.date_prestation ASC";
+
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($params);
+
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     private function cleanIds(array $ids): array
     {
         $ids = array_map('intval', $ids);

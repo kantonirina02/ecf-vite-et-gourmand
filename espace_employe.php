@@ -5,9 +5,13 @@ require_once 'includes/mailer.php';
 require_once 'includes/order_history.php';
 require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
+require_once 'includes/classes/MenuRepository.php';
+require_once 'includes/classes/OrderRepository.php';
 
 require_role(['employe', 'admin']);
 
+$menuRepository = new MenuRepository($pdo);
+$orderRepository = new OrderRepository($pdo);
 $message = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -282,26 +286,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_statut_command
             ensure_order_history_table($pdo);
             $pdo->beginTransaction();
 
-            $req = $pdo->prepare("
-                SELECT c.*, u.email, u.prenom, m.titre
-                FROM commande c
-                JOIN utilisateur u ON c.id_utilisateur = u.id_utilisateur
-                JOIN menu m ON c.id_menu = m.id_menu
-                WHERE c.id_commande = ?
-                FOR UPDATE
-            ");
-            $req->execute([$idCmd]);
-            $commande = $req->fetch(PDO::FETCH_ASSOC);
+            $commande = $orderRepository->findForEmployeeStatusUpdate($idCmd);
 
             if (!$commande) {
                 throw new RuntimeException('Commande introuvable.');
             }
 
             $ancienStatut = normalize_order_status($commande['statut'] ?? '');
-            $pdo->prepare("UPDATE commande SET statut = ? WHERE id_commande = ?")->execute([$nouveauStatut, $idCmd]);
+
+            if (!$orderRepository->updateStatus($idCmd, $nouveauStatut)) {
+                throw new RuntimeException('Impossible de mettre a jour le statut.');
+            }
 
             if ($nouveauStatut === 'annulee' && $ancienStatut !== 'annulee') {
-                $pdo->prepare("UPDATE menu SET stock = stock + 1 WHERE id_menu = ?")->execute([(int) $commande['id_menu']]);
+                $menuRepository->increaseStock((int) $commande['id_menu']);
             }
 
             $commentaire = $motif !== '' ? "Contact: $modeContact. Motif: $motif" : 'Mise à jour par un employé.';
@@ -547,40 +545,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_allergene_dele
     $message = "<div class='alert-success'>Allergène supprimé.</div>";
 }
 
-$where = [];
-$params = [];
+$statusValues = [];
 
 if (!empty($_GET['filtre_statut'])) {
     $statusValues = order_status_database_values($_GET['filtre_statut']);
-    $where[] = "c.statut IN (" . implode(',', array_fill(0, count($statusValues), '?')) . ")";
-    foreach ($statusValues as $statusValue) {
-        $params[] = $statusValue;
-    }
 }
 
-if (!empty($_GET['filtre_client'])) {
-    $where[] = "(u.nom LIKE ? OR u.prenom LIKE ? OR u.email LIKE ?)";
-    $search = '%' . trim($_GET['filtre_client']) . '%';
-    $params[] = $search;
-    $params[] = $search;
-    $params[] = $search;
-}
-
-$sqlCommandes = "
-    SELECT c.*, m.titre as menu_titre, u.nom, u.prenom, u.gsm, u.email
-    FROM commande c
-    JOIN menu m ON c.id_menu = m.id_menu
-    JOIN utilisateur u ON c.id_utilisateur = u.id_utilisateur
-";
-
-if ($where) {
-    $sqlCommandes .= " WHERE " . implode(" AND ", $where);
-}
-
-$sqlCommandes .= " ORDER BY c.date_prestation ASC";
-$reqCommandes = $pdo->prepare($sqlCommandes);
-$reqCommandes->execute($params);
-$commandes = $reqCommandes->fetchAll(PDO::FETCH_ASSOC);
+$filtreClient = trim($_GET['filtre_client'] ?? '');
+$commandes = $orderRepository->findForEmployeeBoard($statusValues, $filtreClient);
 
 $avisEnAttente = $pdo->query("
     SELECT a.*, u.nom, u.prenom, m.titre as menu_titre
