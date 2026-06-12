@@ -51,7 +51,7 @@ include 'includes/header.php';
 
 <div class="container py-5 mt-5">
     <div class="glass-panel p-4 p-md-5 form-container">
-        <h2 class="logo-font text-center mb-4 text-white" style="font-size: 2.5rem;">Connexion</h2>
+        <h2 class="logo-font text-center mb-4 text-white auth-title">Connexion</h2>
 
         <?php if(!empty($message)) echo $message; ?>
 

@@ -523,6 +523,14 @@ textarea:focus-visible {
   font-size: 1.1rem;
 }
 
+.auth-title {
+  font-size: 2.5rem;
+}
+
+.consent-label {
+  display: block;
+}
+
 /* Message d'erreur */
 .alert-error {
   background: rgba(239, 68, 68, 0.1);
