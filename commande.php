@@ -7,6 +7,7 @@ require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
 require_once 'includes/classes/MenuRepository.php';
 require_once 'includes/classes/OrderPriceCalculator.php';
+require_once 'includes/classes/OrderRepository.php';
 require_once 'includes/classes/UserRepository.php';
 
 if (!isset($_SESSION['user_id'])) {
@@ -21,6 +22,7 @@ if (empty($_GET['id_menu'])) {
 
 $id_menu = (int) $_GET['id_menu'];
 $menuRepository = new MenuRepository($pdo);
+$orderRepository = new OrderRepository($pdo);
 
 $menu = $menuRepository->findById($id_menu);
 
@@ -94,21 +96,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('stock');
             }
 
-            $insert = $pdo->prepare("
-                INSERT INTO commande (date_prestation, heure_prestation, lieu_prestation, nb_personnes, prix_total, statut, id_utilisateur, id_menu)
-                VALUES (?, ?, ?, ?, ?, 'en_attente', ?, ?)
-            ");
-            $insert->execute([
+            $id_commande = $orderRepository->createPendingOrder(
                 $date_prestation,
                 $heure_prestation,
                 $lieu_prestation,
                 $nb_personnes,
                 $prix_total_final,
-                $_SESSION['user_id'],
-                $id_menu,
-            ]);
-
-            $id_commande = (int) $pdo->lastInsertId();
+                (int) $_SESSION['user_id'],
+                $id_menu
+            );
             add_order_history($pdo, $id_commande, 'en_attente', 'Commande créée par le client.');
 
             $pdo->commit();
