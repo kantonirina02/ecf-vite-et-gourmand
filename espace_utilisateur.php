@@ -4,6 +4,7 @@ require_once 'includes/db.php';
 require_once 'includes/order_history.php';
 require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
+require_once 'includes/classes/UserRepository.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login');
@@ -11,6 +12,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $id_user = (int) $_SESSION['user_id'];
+$userRepository = new UserRepository($pdo);
 $message = "";
 $date_min_prestation = date('Y-m-d', strtotime('+3 days'));
 
@@ -27,8 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_profil'])) {
     if ($nom === '' || $prenom === '' || !is_valid_phone($gsm) || $adresse === '') {
         $message = "<div class='alert-error'>Vérifiez votre nom, prénom, téléphone et adresse.</div>";
     } else {
-        $update = $pdo->prepare("UPDATE utilisateur SET nom = ?, prenom = ?, gsm = ?, adresse_postale = ? WHERE id_utilisateur = ?");
-        if ($update->execute([$nom, $prenom, $gsm, $adresse, $id_user])) {
+        if ($userRepository->updateProfile($id_user, $nom, $prenom, $gsm, $adresse)) {
             $_SESSION['prenom'] = $prenom;
             $message = "<div class='alert-success'>Profil mis à jour avec succès.</div>";
         }
@@ -149,9 +150,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_avis'])) {
     }
 }
 
-$req_user = $pdo->prepare("SELECT * FROM utilisateur WHERE id_utilisateur = ?");
-$req_user->execute([$id_user]);
-$user = $req_user->fetch(PDO::FETCH_ASSOC);
+$user = $userRepository->findById($id_user);
+
+if (!$user) {
+    header('Location: logout');
+    exit;
+}
 
 $req_orders = $pdo->prepare("
     SELECT c.*, m.titre as menu_titre

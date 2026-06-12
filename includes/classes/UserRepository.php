@@ -17,4 +17,15 @@ final class UserRepository
 
         return $user ?: null;
     }
+
+    public function updateProfile(int $idUser, string $nom, string $prenom, string $gsm, string $adresse): bool
+    {
+        $statement = $this->pdo->prepare("
+            UPDATE utilisateur
+            SET nom = ?, prenom = ?, gsm = ?, adresse_postale = ?
+            WHERE id_utilisateur = ?
+        ");
+
+        return $statement->execute([$nom, $prenom, $gsm, $adresse, $idUser]);
+    }
 }
