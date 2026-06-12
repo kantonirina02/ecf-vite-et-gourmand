@@ -383,6 +383,23 @@ textarea:focus-visible {
   scrollbar-color: var(--gold-primary) var(--bg-dark);
 }
 
+.home-reviews-grid {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.home-review-card {
+  flex: 1;
+  min-width: 300px;
+  max-width: 400px;
+}
+
+.home-review-avatar {
+  width: 40px;
+  height: 40px;
+}
+
 .review-card {
   flex: 0 0 350px;
   background: var(--card-bg);

@@ -14,7 +14,7 @@ include 'includes/header.php'; ?>
   <div class="hero-content">
     <h1>Vite & <span class="highlight">Gourmand</span></h1>
     <p>L'art de la gastronomie pour vos événements. Sublimez vos moments précieux avec nos créations culinaires d'exception depuis plus de 25 ans.</p>
-    <a href="menus" class="btn-primary" style="text-decoration:none;">Découvrir la Carte</a>
+    <a href="menus" class="btn-primary">Découvrir la Carte</a>
   </div>
 </section>
 
@@ -43,7 +43,7 @@ include 'includes/header.php'; ?>
     <div class="container">
         <h2 class="logo-font text-gold text-center mb-5">Ils Nous Font Confiance</h2>
 
-        <div class="row justify-content-center" style="display: flex; gap: 2rem; flex-wrap: wrap;">
+        <div class="row justify-content-center home-reviews-grid">
             <?php
             // verification de la connexion BDD active
             if (isset($pdo)) {
@@ -63,13 +63,13 @@ include 'includes/header.php'; ?>
                     if (count($avis_valides) > 0) {
                         foreach($avis_valides as $avis):
             ?>
-                            <div class="glass-panel p-4" style="flex: 1; min-width: 300px; max-width: 400px;">
+                            <div class="glass-panel p-4 home-review-card">
                                 <div class="text-warning mb-3">
                                     <?php echo str_repeat('⭐', (int)$avis['note']); ?>
                                 </div>
                                 <p class="fst-italic text-white mb-4">"<?php echo htmlspecialchars($avis['commentaire']); ?>"</p>
                                 <div class="d-flex align-items-center gap-3">
-                                    <div class="avatar-circle bg-warning text-dark fw-bold rounded-circle d-flex justify-content-center align-items-center" style="width: 40px; height: 40px;">
+                                    <div class="avatar-circle bg-warning text-dark fw-bold rounded-circle d-flex justify-content-center align-items-center home-review-avatar">
                                         <?php echo strtoupper(substr($avis['prenom'], 0, 1)); ?>
                                     </div>
                                     <div>
