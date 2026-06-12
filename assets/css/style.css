@@ -188,6 +188,14 @@ textarea:focus-visible {
   color: var(--bg-darker);
 }
 
+.btn-login-highlight {
+  color: #f59e0b;
+}
+
+.logout-link {
+  font-size: 1.3rem;
+}
+
 .mobile-menu-btn {
   display: none;
   background: none;
