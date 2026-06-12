@@ -5,6 +5,7 @@ require_once 'includes/mailer.php';
 require_once 'includes/order_history.php';
 require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
+require_once 'includes/classes/OrderPriceCalculator.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login?erreur=connexion_requise');
@@ -81,14 +82,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('minimum');
             }
 
-            $prix_menu_total = (float) $menu_lock['prix_min'] * $nb_personnes;
-
-            if ($nb_personnes >= ((int) $menu_lock['nb_personnes_min'] + 5)) {
-                $prix_menu_total *= 0.90;
-            }
-
-            $frais_livraison = $est_hors_bordeaux ? 5 + (0.59 * $distance_km) : 0;
-            $prix_total_final = round($prix_menu_total + $frais_livraison, 2);
+            $priceCalculator = new OrderPriceCalculator();
+            $priceDetails = $priceCalculator->calculate(
+                (float) $menu_lock['prix_min'],
+                (int) $menu_lock['nb_personnes_min'],
+                $nb_personnes,
+                $est_hors_bordeaux,
+                $distance_km
+            );
+            $prix_total_final = $priceDetails['total'];
 
             $update_stock = $pdo->prepare("UPDATE menu SET stock = stock - 1 WHERE id_menu = ? AND stock > 0");
             $update_stock->execute([$id_menu]);
