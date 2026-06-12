@@ -514,6 +514,15 @@ textarea:focus-visible {
   background: rgba(0, 0, 0, 0.6);
 }
 
+.textarea-resizable {
+  resize: vertical;
+}
+
+.btn-submit-large {
+  padding: 1rem;
+  font-size: 1.1rem;
+}
+
 /* Message d'erreur */
 .alert-error {
   background: rgba(239, 68, 68, 0.1);

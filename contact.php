@@ -60,11 +60,11 @@ include 'includes/header.php';
 
                     <div class="mb-4">
                         <label class="form-label text-warning">Description (Votre message)</label>
-                        <textarea name="description" class="form-control" rows="6" placeholder="Détaillez votre demande ici..." required style="resize: vertical;"></textarea>
+                        <textarea name="description" class="form-control textarea-resizable" rows="6" placeholder="Détaillez votre demande ici..." required></textarea>
                     </div>
 
                     <div class="text-center">
-                        <button type="submit" class="btn-primary border-0 w-100" style="padding: 1rem; font-size: 1.1rem;">
+                        <button type="submit" class="btn-primary border-0 w-100 btn-submit-large">
                             Envoyer le message
                         </button>
                     </div>
