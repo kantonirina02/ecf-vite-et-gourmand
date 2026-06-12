@@ -81,6 +81,10 @@ textarea:focus-visible {
   border: 0 !important;
 }
 
+.is-hidden {
+  display: none;
+}
+
 /* Navbar */
 .navbar {
   position: fixed;
@@ -936,6 +940,11 @@ textarea.form-control {
   font-size: 1.5rem;
   font-weight: 700;
 }
+
+.order-terms-note {
+  font-size: 0.8rem;
+}
+
 /* ESPACE UTILISATEUR & TABLEAUX DE BORD */
 .dashboard-grid {
   display: grid;

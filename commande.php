@@ -141,7 +141,7 @@ include 'includes/header.php';
 ?>
 
 <div class="container py-5 mt-5">
-    <h2 class="logo-font text-white mb-5 text-center" style="font-size: 2.5rem;">Finaliser votre commande</h2>
+    <h2 class="logo-font text-white mb-5 text-center auth-title">Finaliser votre commande</h2>
 
     <?php if(!empty($message)) echo $message; ?>
 
@@ -208,7 +208,7 @@ include 'includes/header.php';
                         <label class="form-check-label text-white" for="checkHorsBordeaux">La livraison est en dehors de la ville de Bordeaux</label>
                     </div>
 
-                    <div class="mb-3" id="divDistance" style="display: none;">
+                    <div class="mb-3 is-hidden" id="divDistance">
                         <label class="form-label text-warning" for="inputDistance"><i class="fa-solid fa-truck"></i> Distance depuis Bordeaux en kilomètres</label>
                         <input type="number" step="0.1" min="0" name="distance_km" id="inputDistance" class="form-control border-warning" value="0">
                         <small class="text-muted">Facturation : 5 EUR de base + 0.59 EUR par km</small>
@@ -230,12 +230,12 @@ include 'includes/header.php';
                         <span id="recapMenuPrix">0.00 EUR</span>
                     </div>
 
-                    <div class="summary-line text-success" id="divReduction" style="display:none;">
+                    <div class="summary-line text-success is-hidden" id="divReduction">
                         <span>Réduction de groupe (-10%)</span>
                         <span id="recapReduction">-0.00 EUR</span>
                     </div>
 
-                    <div class="summary-line text-warning" id="divLivraison" style="display:none;">
+                    <div class="summary-line text-warning is-hidden" id="divLivraison">
                         <span>Frais de livraison hors Bordeaux</span>
                         <span id="recapLivraison">+0.00 EUR</span>
                     </div>
@@ -245,10 +245,10 @@ include 'includes/header.php';
                         <span id="recapTotal">0.00 EUR</span>
                     </div>
 
-                    <button type="submit" class="btn-primary w-100 mt-4 border-0 py-3" style="font-size: 1.1rem;">
+                    <button type="submit" class="btn-primary w-100 mt-4 border-0 py-3 btn-submit-large">
                         <i class="fa-solid fa-check-circle me-2"></i> Confirmer la commande
                     </button>
-                    <p class="text-center text-muted mt-3" style="font-size: 0.8rem;">En cliquant sur confirmer, vous acceptez nos Conditions Générales de Vente.</p>
+                    <p class="text-center text-muted mt-3 order-terms-note">En cliquant sur confirmer, vous acceptez nos Conditions Générales de Vente.</p>
                 </div>
             </div>
         </div>
