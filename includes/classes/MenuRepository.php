@@ -29,6 +29,23 @@ final class MenuRepository
         return $menu ?: null;
     }
 
+    public function findByIdForUpdate(int $idMenu): ?array
+    {
+        $statement = $this->pdo->prepare("SELECT * FROM menu WHERE id_menu = ? FOR UPDATE");
+        $statement->execute([$idMenu]);
+        $menu = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $menu ?: null;
+    }
+
+    public function decreaseStockIfAvailable(int $idMenu): bool
+    {
+        $statement = $this->pdo->prepare("UPDATE menu SET stock = stock - 1 WHERE id_menu = ? AND stock > 0");
+        $statement->execute([$idMenu]);
+
+        return $statement->rowCount() === 1;
+    }
+
     public function findDishesWithAllergens(int $idMenu): array
     {
         $statement = $this->pdo->prepare("

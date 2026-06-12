@@ -5,6 +5,7 @@ require_once 'includes/mailer.php';
 require_once 'includes/order_history.php';
 require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
+require_once 'includes/classes/MenuRepository.php';
 require_once 'includes/classes/OrderPriceCalculator.php';
 require_once 'includes/classes/UserRepository.php';
 
@@ -19,10 +20,9 @@ if (empty($_GET['id_menu'])) {
 }
 
 $id_menu = (int) $_GET['id_menu'];
+$menuRepository = new MenuRepository($pdo);
 
-$req_menu = $pdo->prepare("SELECT * FROM menu WHERE id_menu = ?");
-$req_menu->execute([$id_menu]);
-$menu = $req_menu->fetch(PDO::FETCH_ASSOC);
+$menu = $menuRepository->findById($id_menu);
 
 if (!$menu) {
     header('Location: menus');
@@ -66,9 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ensure_order_history_table($pdo);
             $pdo->beginTransaction();
 
-            $req_menu_lock = $pdo->prepare("SELECT * FROM menu WHERE id_menu = ? FOR UPDATE");
-            $req_menu_lock->execute([$id_menu]);
-            $menu_lock = $req_menu_lock->fetch(PDO::FETCH_ASSOC);
+            $menu_lock = $menuRepository->findByIdForUpdate($id_menu);
 
             if (!$menu_lock) {
                 throw new RuntimeException('menu');
@@ -92,10 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $prix_total_final = $priceDetails['total'];
 
-            $update_stock = $pdo->prepare("UPDATE menu SET stock = stock - 1 WHERE id_menu = ? AND stock > 0");
-            $update_stock->execute([$id_menu]);
-
-            if ($update_stock->rowCount() !== 1) {
+            if (!$menuRepository->decreaseStockIfAvailable($id_menu)) {
                 throw new RuntimeException('stock');
             }
 
