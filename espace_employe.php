@@ -741,11 +741,11 @@ include 'includes/header.php';
                                 <td><?php echo htmlspecialchars($menu['prix_min']); ?> EUR</td>
                                 <td><?php echo (int)($menu['stock'] ?? 0); ?></td>
                                 <td>
-                                    <form method="POST" action="" style="display:inline;">
+                                    <form method="POST" action="" style="display:inline;" data-confirm="Supprimer ce menu ?">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action_menu_delete" value="1">
                                         <input type="hidden" name="id_menu" value="<?php echo (int)$menu['id_menu']; ?>">
-                                        <button type="submit" class="btn-action-small btn-outline text-danger border-danger" onclick="return confirm('Supprimer ce menu ?');">Supprimer</button>
+                                        <button type="submit" class="btn-action-small btn-outline text-danger border-danger">Supprimer</button>
                                     </form>
                                 </td>
                             </tr>
@@ -853,7 +853,7 @@ include 'includes/header.php';
                         <?php endforeach; ?>
                     </select>
                     <button type="submit" name="action_plat_save" value="1" class="btn-action-small btn-primary border-0">Modifier</button>
-                    <button type="submit" name="action_plat_delete" value="1" class="btn-action-small btn-outline text-danger border-danger" onclick="return confirm('Supprimer ce plat ?');">Supprimer</button>
+                    <button type="submit" name="action_plat_delete" value="1" class="btn-action-small btn-outline text-danger border-danger" data-confirm-click="Supprimer ce plat ?">Supprimer</button>
                 </form>
             <?php endforeach; ?>
         </div>

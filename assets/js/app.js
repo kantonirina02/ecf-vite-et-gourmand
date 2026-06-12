@@ -392,6 +392,23 @@ class ConfirmSubmitController {
   }
 }
 
+// Gere les boutons de suppression qui partagent leur formulaire avec une autre action.
+class ConfirmClickController {
+  constructor(elementSelector) {
+    this.elements = document.querySelectorAll(elementSelector);
+  }
+
+  init() {
+    this.elements.forEach((element) => {
+      element.addEventListener('click', (event) => {
+        if (!window.confirm(element.dataset.confirmClick || 'Confirmer cette action ?')) {
+          event.preventDefault();
+        }
+      });
+    });
+  }
+}
+
 class App {
   init() {
     new MobileNavigation('.mobile-menu-btn', '.nav-links', '.nav-actions').init();
@@ -400,6 +417,7 @@ class App {
     new OrderSummaryCalculator('#formCommande').init();
     new RowVisibilityController('.js-toggle-row').init();
     new ConfirmSubmitController('form[data-confirm]').init();
+    new ConfirmClickController('[data-confirm-click]').init();
   }
 }
 
