@@ -994,6 +994,30 @@ textarea.form-control {
 }
 
 /* ESPACE UTILISATEUR & TABLEAUX DE BORD */
+.admin-panel-link {
+  width: auto;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+}
+
+.inline-form {
+  display: inline;
+}
+
+.stats-filter-form {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.stats-menu-select {
+  max-width: 220px;
+}
+
+.stats-date-input {
+  max-width: 180px;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr;

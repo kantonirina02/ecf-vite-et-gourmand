@@ -99,7 +99,7 @@ include 'includes/header.php';
 <div class="container py-5 mt-5">
     <div class="d-flex justify-content-between align-items-center mb-5 border-bottom border-warning pb-3">
         <h2 class="logo-font text-gold m-0">Espace Administrateur</h2>
-        <a href="espace_employe" class="btn-outline border-warning text-warning" style="padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none;">
+        <a href="espace_employe" class="btn-outline border-warning text-warning admin-panel-link">
             <i class="fa-solid fa-arrow-right"></i> Aller au panel Employe
         </a>
     </div>
@@ -151,13 +151,13 @@ include 'includes/header.php';
                                     </td>
                                     <td>
                                         <?php if(($emp['statut_compte'] ?? 'actif') === 'actif'): ?>
-                                            <form method="POST" action="" style="display:inline;" data-confirm="Rendre ce compte inutilisable ?">
+                                            <form method="POST" action="" class="inline-form" data-confirm="Rendre ce compte inutilisable ?">
                                                 <?php echo csrf_field(); ?>
                                                 <input type="hidden" name="id_employe" value="<?php echo (int)$emp['id_utilisateur']; ?>">
                                                 <button type="submit" name="action_statut" value="desactiver" class="btn-action-small btn-outline text-danger border-danger">Desactiver</button>
                                             </form>
                                         <?php else: ?>
-                                            <form method="POST" action="" style="display:inline;">
+                                            <form method="POST" action="" class="inline-form">
                                                 <?php echo csrf_field(); ?>
                                                 <input type="hidden" name="id_employe" value="<?php echo (int)$emp['id_utilisateur']; ?>">
                                                 <button type="submit" name="action_statut" value="activer" class="btn-action-small btn-outline text-success border-success">Reactiver</button>
@@ -174,8 +174,8 @@ include 'includes/header.php';
             <div class="mt-5 pt-4 border-top border-secondary">
                 <h4 class="text-gold mb-4"><i class="fa-solid fa-chart-pie"></i> Statistiques des Commandes</h4>
 
-                <form method="GET" action="" class="mb-4" style="display:flex; gap:1rem; flex-wrap:wrap;">
-                    <select name="stats_menu" class="form-control" style="max-width:220px;">
+                <form method="GET" action="" class="mb-4 stats-filter-form">
+                    <select name="stats_menu" class="form-control stats-menu-select">
                         <option value="">Tous les menus</option>
                         <?php foreach($stats as $entry): ?>
                             <option value="<?php echo htmlspecialchars($entry['id_menu']); ?>" <?php echo ((string)$filtre_menu === (string)$entry['id_menu']) ? 'selected' : ''; ?>>
@@ -183,8 +183,8 @@ include 'includes/header.php';
                             </option>
                         <?php endforeach; ?>
                     </select>
-                    <input type="date" name="date_debut" class="form-control" style="max-width:180px;" value="<?php echo htmlspecialchars($date_debut); ?>">
-                    <input type="date" name="date_fin" class="form-control" style="max-width:180px;" value="<?php echo htmlspecialchars($date_fin); ?>">
+                    <input type="date" name="date_debut" class="form-control stats-date-input" value="<?php echo htmlspecialchars($date_debut); ?>">
+                    <input type="date" name="date_fin" class="form-control stats-date-input" value="<?php echo htmlspecialchars($date_fin); ?>">
                     <button type="submit" class="btn-action-small btn-primary border-0">Filtrer</button>
                 </form>
 
