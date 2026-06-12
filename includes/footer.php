@@ -1,3 +1,17 @@
+<?php
+require_once __DIR__ . '/classes/ScheduleRepository.php';
+
+$horaires_footer = [];
+
+if (isset($pdo)) {
+    try {
+        $scheduleRepositoryFooter = new ScheduleRepository($pdo);
+        $horaires_footer = $scheduleRepositoryFooter->findAll();
+    } catch (Throwable $e) {
+        error_log($e->getMessage());
+    }
+}
+?>
 </main>
     <footer class="footer mt-auto">
       <div class="footer-content">
@@ -8,29 +22,18 @@
         <div class="footer-section hours">
           <h3><i class="fa-regular fa-clock"></i> Nos Horaires</h3>
           <ul>
-            <?php
-            // verification de la connexion à la BDD
-            if (isset($pdo)) {
-                $req_horaires_footer = $pdo->query("SELECT * FROM horaire");
-                if ($req_horaires_footer) {
-                    $horaires_footer = $req_horaires_footer->fetchAll(PDO::FETCH_ASSOC);
-
-                    foreach($horaires_footer as $h):
-            ?>
+            <?php if (!empty($horaires_footer)): ?>
+                <?php foreach($horaires_footer as $h): ?>
                         <li>
                           <span><?php echo htmlspecialchars($h['jour']); ?>:</span>
                           <?php echo htmlspecialchars($h['heures']); ?>
                         </li>
-            <?php
-                    endforeach;
-                }
-            } else {
-                // Secours au cas où $pdo n'est pas chargé sur une page
-                echo '<li><span>Lundi - Vendredi:</span> 08:00 - 19:00</li>';
-                echo '<li><span>Samedi:</span> 09:00 - 18:00</li>';
-                echo '<li><span>Dimanche:</span> 09:00 - 14:00</li>';
-            }
-            ?>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <li><span>Lundi - Vendredi:</span> 08:00 - 19:00</li>
+                <li><span>Samedi:</span> 09:00 - 18:00</li>
+                <li><span>Dimanche:</span> 09:00 - 14:00</li>
+            <?php endif; ?>
           </ul>
         </div>
         <div class="footer-section links">

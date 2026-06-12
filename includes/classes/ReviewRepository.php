@@ -30,4 +30,20 @@ final class ReviewRepository
 
         return $statement ? $statement->fetchAll(PDO::FETCH_ASSOC) : [];
     }
+
+    public function findLatestApprovedForHome(int $limit = 3): array
+    {
+        $limit = max(1, min(10, $limit));
+        $statement = $this->pdo->prepare("
+            SELECT a.note, a.commentaire, u.prenom, LEFT(u.nom, 1) as initiale_nom
+            FROM avis a
+            JOIN utilisateur u ON a.id_utilisateur = u.id_utilisateur
+            WHERE a.statut = 'validé'
+            ORDER BY a.id_avis DESC
+            LIMIT $limit
+        ");
+        $statement->execute();
+
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
+    }
 }

@@ -8,6 +8,11 @@ if ($route !== '' && $route !== 'index' && !str_contains($route, '.') && is_file
 }
 
 require_once 'includes/db.php';
+require_once 'includes/classes/ReviewRepository.php';
+
+$reviewRepository = new ReviewRepository($pdo);
+$avis_valides = $reviewRepository->findLatestApprovedForHome(3);
+
 include 'includes/header.php'; ?>
 
 <section class="hero">
@@ -44,49 +49,27 @@ include 'includes/header.php'; ?>
         <h2 class="logo-font text-gold text-center mb-5">Ils Nous Font Confiance</h2>
 
         <div class="row justify-content-center home-reviews-grid">
-            <?php
-            // verification de la connexion BDD active
-            if (isset($pdo)) {
-                // recuperation des avis validés uniquement, avec le prénom du client (limité aux 3 plus récents)
-                $req_avis_accueil = $pdo->query("
-                    SELECT a.note, a.commentaire, u.prenom, LEFT(u.nom, 1) as initiale_nom
-                    FROM avis a
-                    JOIN utilisateur u ON a.id_utilisateur = u.id_utilisateur
-                    WHERE a.statut = 'validé'
-                    ORDER BY a.id_avis DESC
-                    LIMIT 3
-                ");
-
-                if ($req_avis_accueil) {
-                    $avis_valides = $req_avis_accueil->fetchAll(PDO::FETCH_ASSOC);
-
-                    if (count($avis_valides) > 0) {
-                        foreach($avis_valides as $avis):
-            ?>
-                            <div class="glass-panel p-4 home-review-card">
-                                <div class="text-warning mb-3">
-                                    <?php echo str_repeat('⭐', (int)$avis['note']); ?>
-                                </div>
-                                <p class="fst-italic text-white mb-4">"<?php echo htmlspecialchars($avis['commentaire']); ?>"</p>
-                                <div class="d-flex align-items-center gap-3">
-                                    <div class="avatar-circle bg-warning text-dark fw-bold rounded-circle d-flex justify-content-center align-items-center home-review-avatar">
-                                        <?php echo strtoupper(substr($avis['prenom'], 0, 1)); ?>
-                                    </div>
-                                    <div>
-                                        <strong class="text-gold"><?php echo htmlspecialchars($avis['prenom'] . ' ' . $avis['initiale_nom'] . '.'); ?></strong>
-                                        <br><small class="text-muted">Client(e) vérifié(e)</small>
-                                    </div>
-                                </div>
+            <?php if (count($avis_valides) > 0): ?>
+                <?php foreach($avis_valides as $avis): ?>
+                    <div class="glass-panel p-4 home-review-card">
+                        <div class="text-warning mb-3">
+                            <?php echo str_repeat('⭐', (int)$avis['note']); ?>
+                        </div>
+                        <p class="fst-italic text-white mb-4">"<?php echo htmlspecialchars($avis['commentaire']); ?>"</p>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="avatar-circle bg-warning text-dark fw-bold rounded-circle d-flex justify-content-center align-items-center home-review-avatar">
+                                <?php echo strtoupper(substr($avis['prenom'], 0, 1)); ?>
                             </div>
-            <?php
-                        endforeach;
-                    } else {
-                        // S'il n'y a pas encore d'avis validé dans la BDD, on affiche un petit message
-                        echo '<p class="text-center text-muted fst-italic w-100">Les avis de nos clients apparaîtront ici prochainement.</p>';
-                    }
-                }
-            }
-            ?>
+                            <div>
+                                <strong class="text-gold"><?php echo htmlspecialchars($avis['prenom'] . ' ' . $avis['initiale_nom'] . '.'); ?></strong>
+                                <br><small class="text-muted">Client(e) vérifié(e)</small>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <p class="text-center text-muted fst-italic w-100">Les avis de nos clients apparaîtront ici prochainement.</p>
+            <?php endif; ?>
         </div>
     </div>
 </section>
