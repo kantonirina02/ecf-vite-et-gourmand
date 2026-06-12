@@ -202,7 +202,7 @@ include 'includes/header.php';
                 <input type="text" name="prenom" class="form-control" value="<?php echo htmlspecialchars($user['prenom']); ?>" required>
 
                 <label class="form-label">Email</label>
-                <input type="email" class="form-control" value="<?php echo htmlspecialchars($user['email']); ?>" readonly style="opacity: 0.5;">
+                <input type="email" class="form-control readonly-muted" value="<?php echo htmlspecialchars($user['email']); ?>" readonly>
 
                 <label class="form-label">Téléphone</label>
                 <input type="text" name="gsm" class="form-control" value="<?php echo htmlspecialchars($user['gsm']); ?>" required>
@@ -248,7 +248,7 @@ include 'includes/header.php';
                                     <td>
                                         <?php if($statutClean === 'en_attente'): ?>
                                             <button class="btn-action-small btn-outline js-toggle-row" type="button" data-target="formModifBox<?php echo (int)$cmd['id_commande']; ?>" data-display="table-row">Modifier</button>
-                                            <form method="POST" action="" style="display:inline;" data-confirm="Êtes-vous sûr de vouloir annuler cette commande ?">
+                                            <form method="POST" action="" class="inline-form" data-confirm="Êtes-vous sûr de vouloir annuler cette commande ?">
                                                 <?php echo csrf_field(); ?>
                                                 <input type="hidden" name="annuler_commande" value="<?php echo (int)$cmd['id_commande']; ?>">
                                                 <button type="submit" class="btn-action-small btn-outline text-danger border-danger">Annuler</button>
@@ -274,10 +274,10 @@ include 'includes/header.php';
                                     </td>
                                 </tr>
 
-                                <tr id="suiviBox<?php echo (int)$cmd['id_commande']; ?>" style="display: none;">
-                                    <td colspan="6" style="background: rgba(255,255,255,0.03); padding: 1rem;">
+                                <tr id="suiviBox<?php echo (int)$cmd['id_commande']; ?>" class="is-hidden">
+                                    <td colspan="6" class="order-history-cell">
                                         <strong class="text-gold">Suivi de commande</strong>
-                                        <ul style="margin-top: 1rem;">
+                                        <ul class="order-history-list">
                                             <?php foreach(($historiques[$cmd['id_commande']] ?? []) as $hist): ?>
                                                 <li>
                                                     <?php echo htmlspecialchars(order_status_label($hist['statut'])); ?> -
@@ -292,8 +292,8 @@ include 'includes/header.php';
                                     </td>
                                 </tr>
 
-                                <tr id="formModifBox<?php echo (int)$cmd['id_commande']; ?>" style="display: none;">
-                                    <td colspan="6" style="background: rgba(212, 175, 55, 0.05); padding: 1.5rem;">
+                                <tr id="formModifBox<?php echo (int)$cmd['id_commande']; ?>" class="is-hidden">
+                                    <td colspan="6" class="order-form-cell">
                                         <form method="POST" action="">
                                             <?php echo csrf_field(); ?>
                                             <input type="hidden" name="action_modifier_commande" value="1">
@@ -330,15 +330,15 @@ include 'includes/header.php';
                                     </td>
                                 </tr>
 
-                                <tr id="formAvisBox<?php echo (int)$cmd['id_commande']; ?>" style="display: none;">
-                                    <td colspan="6" style="background: rgba(212, 175, 55, 0.05); padding: 1.5rem;">
+                                <tr id="formAvisBox<?php echo (int)$cmd['id_commande']; ?>" class="is-hidden">
+                                    <td colspan="6" class="order-form-cell">
                                         <form method="POST" action="">
                                             <?php echo csrf_field(); ?>
                                             <input type="hidden" name="action_avis" value="1">
                                             <input type="hidden" name="id_commande" value="<?php echo (int)$cmd['id_commande']; ?>">
 
                                             <label class="form-label">Note</label>
-                                            <select name="note" class="form-control" style="max-width: 300px;" required>
+                                            <select name="note" class="form-control review-note-select" required>
                                                 <option value="5">5 - Excellent</option>
                                                 <option value="4">4 - Très bon</option>
                                                 <option value="3">3 - Correct</option>

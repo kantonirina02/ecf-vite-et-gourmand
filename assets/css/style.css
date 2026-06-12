@@ -1004,6 +1004,28 @@ textarea.form-control {
   display: inline;
 }
 
+.readonly-muted {
+  opacity: 0.5;
+}
+
+.order-history-cell {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 1rem;
+}
+
+.order-history-list {
+  margin-top: 1rem;
+}
+
+.order-form-cell {
+  background: rgba(212, 175, 55, 0.05);
+  padding: 1.5rem;
+}
+
+.review-note-select {
+  max-width: 300px;
+}
+
 .stats-filter-form {
   display: flex;
   gap: 1rem;
