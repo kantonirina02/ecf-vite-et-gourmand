@@ -4,7 +4,7 @@ require_once 'includes/db.php';
 require_once 'includes/classes/UserRepository.php';
 
 if (isset($_SESSION['user_id'])) {
-    header('Location: /');
+    header('Location: index');
     exit;
 }
 
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['role'] = $user['role'];
             $_SESSION['prenom'] = $user['prenom'];
 
-            header('Location: /');
+            header('Location: index');
             exit;
         }
 
