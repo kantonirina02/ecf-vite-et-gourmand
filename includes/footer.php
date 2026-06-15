@@ -11,6 +11,9 @@ if (isset($pdo)) {
         error_log($e->getMessage());
     }
 }
+
+$horaires_footer_gauche = array_slice($horaires_footer, 0, 3);
+$horaires_footer_droite = array_slice($horaires_footer, 3);
 ?>
 </main>
     <footer class="footer mt-auto">
@@ -21,20 +24,38 @@ if (isset($pdo)) {
         </div>
         <div class="footer-section hours">
           <h3><i class="fa-regular fa-clock"></i> Nos Horaires</h3>
-          <ul>
+          <div class="footer-hours-grid">
             <?php if (!empty($horaires_footer)): ?>
-                <?php foreach($horaires_footer as $h): ?>
+                <ul>
+                <?php foreach($horaires_footer_gauche as $h): ?>
                         <li>
                           <span><?php echo htmlspecialchars($h['jour']); ?>:</span>
                           <?php echo htmlspecialchars($h['heures']); ?>
                         </li>
                 <?php endforeach; ?>
+                </ul>
+                <ul>
+                <?php foreach($horaires_footer_droite as $h): ?>
+                        <li>
+                          <span><?php echo htmlspecialchars($h['jour']); ?>:</span>
+                          <?php echo htmlspecialchars($h['heures']); ?>
+                        </li>
+                <?php endforeach; ?>
+                </ul>
             <?php else: ?>
-                <li><span>Lundi - Vendredi:</span> 08:00 - 19:00</li>
-                <li><span>Samedi:</span> 09:00 - 18:00</li>
-                <li><span>Dimanche:</span> 09:00 - 14:00</li>
+                <ul>
+                  <li><span>Lundi:</span> 08:00 - 19:00</li>
+                  <li><span>Mardi:</span> 08:00 - 19:00</li>
+                  <li><span>Mercredi:</span> 08:00 - 19:00</li>
+                </ul>
+                <ul>
+                  <li><span>Jeudi:</span> 08:00 - 19:00</li>
+                  <li><span>Vendredi:</span> 08:00 - 19:00</li>
+                  <li><span>Samedi:</span> 09:00 - 18:00</li>
+                  <li><span>Dimanche:</span> 09:00 - 14:00</li>
+                </ul>
             <?php endif; ?>
-          </ul>
+          </div>
         </div>
         <div class="footer-section links">
           <h3><i class="fa-solid fa-link"></i> Liens Utiles</h3>

@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($envoi_reussi) {
             $message_alerte = "<div class='alert-success mb-4'>Votre message a bien été envoyé à notre équipe. Nous vous répondrons dans les plus brefs délais !</div>";
         } else {
-            $message_alerte = "<div class='alert-success mb-4'>Votre message a bien ete enregistre. L'envoi email sera traite par la configuration de l'hebergeur.</div>";
+            $message_alerte = "<div class='alert-success mb-4'>Merci, votre message a bien été pris en compte. Notre équipe vous répondra dans les plus brefs délais.</div>";
         }
     } else {
         $message_alerte = "<div class='alert-error mb-4'>Veuillez remplir tous les champs correctement avec une adresse email valide.</div>";

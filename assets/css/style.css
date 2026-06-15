@@ -478,6 +478,27 @@ textarea:focus-visible {
   color: var(--text-main);
 }
 
+.footer-section.hours {
+  text-align: center;
+}
+
+.footer-hours-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, max-content));
+  justify-content: center;
+  gap: 1.5rem 2.5rem;
+}
+
+.footer-hours-grid ul {
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+
+.footer-hours-grid li {
+  margin-bottom: 0.45rem;
+}
+
 .footer ul a:hover {
   color: var(--gold-primary);
 }
