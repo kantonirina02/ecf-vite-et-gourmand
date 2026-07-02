@@ -33,28 +33,28 @@ require_once __DIR__ . '/security.php';
         <div class="nav-actions">
           <?php if(isset($_SESSION['user_id'])): ?>
             <?php if ($_SESSION['role'] === 'admin'): ?>
-                <a href="espace_admin" class="btn-login" style="text-decoration: none; color: #f59e0b;">
+                <a href="espace_admin" class="btn-login btn-login-highlight">
                     <i class="fa-solid fa-crown"></i> Admin (<?php echo htmlspecialchars($_SESSION['prenom']); ?>)
                 </a>
 
             <?php elseif ($_SESSION['role'] === 'employe'): ?>
-                <a href="espace_employe" class="btn-login" style="text-decoration: none; color: #f59e0b;">
+                <a href="espace_employe" class="btn-login btn-login-highlight">
                     <i class="fa-solid fa-user-tie"></i> Espace Pro (<?php echo htmlspecialchars($_SESSION['prenom']); ?>)
                 </a>
 
             <?php else: ?>
-                <a href="espace_utilisateur" class="btn-login" style="text-decoration: none;">
+                <a href="espace_utilisateur" class="btn-login">
                     <i class="fa-solid fa-user"></i> <?php echo htmlspecialchars($_SESSION['prenom']); ?>
                 </a>
             <?php endif; ?>
 
-            <a href="logout" class="text-danger" title="Se déconnecter" style="font-size: 1.3rem; text-decoration: none;">
+            <a href="logout" class="text-danger logout-link" title="Se déconnecter">
                 <i class="fa-solid fa-power-off"></i>
             </a>
 
         <?php else: ?>
 
-            <a href="login" class="btn-login" style="text-decoration: none;">
+            <a href="login" class="btn-login">
                 <i class="fa-regular fa-user"></i> Connexion
             </a>
 

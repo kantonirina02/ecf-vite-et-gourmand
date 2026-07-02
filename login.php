@@ -1,13 +1,15 @@
 <?php
 require_once 'includes/security.php';
 require_once 'includes/db.php';
+require_once 'includes/classes/UserRepository.php';
 
 if (isset($_SESSION['user_id'])) {
-    header('Location: /');
+    header('Location: index');
     exit;
 }
 
 $message = "";
+$userRepository = new UserRepository($pdo);
 
 if (isset($_GET['inscription']) && $_GET['inscription'] === 'success') {
     $message = "<div class='alert-success mb-4'>Inscription réussie. Vous pouvez maintenant vous connecter.</div>";
@@ -22,9 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (login_is_blocked($pdo, $email)) {
         $message = "<div class='alert-error'>Trop de tentatives. Réessayez dans quelques minutes.</div>";
     } else {
-        $requete = $pdo->prepare("SELECT * FROM utilisateur WHERE email = ?");
-        $requete->execute([$email]);
-        $user = $requete->fetch(PDO::FETCH_ASSOC);
+        $user = $userRepository->findByEmail($email);
 
         if (
             $user
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['role'] = $user['role'];
             $_SESSION['prenom'] = $user['prenom'];
 
-            header('Location: /');
+            header('Location: index');
             exit;
         }
 
@@ -51,7 +51,7 @@ include 'includes/header.php';
 
 <div class="container py-5 mt-5">
     <div class="glass-panel p-4 p-md-5 form-container">
-        <h2 class="logo-font text-center mb-4 text-white" style="font-size: 2.5rem;">Connexion</h2>
+        <h2 class="logo-font text-center mb-4 text-white auth-title">Connexion</h2>
 
         <?php if(!empty($message)) echo $message; ?>
 

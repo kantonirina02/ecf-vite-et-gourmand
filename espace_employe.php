@@ -5,9 +5,21 @@ require_once 'includes/mailer.php';
 require_once 'includes/order_history.php';
 require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
+require_once 'includes/classes/AllergenRepository.php';
+require_once 'includes/classes/DishRepository.php';
+require_once 'includes/classes/MenuRepository.php';
+require_once 'includes/classes/OrderRepository.php';
+require_once 'includes/classes/ReviewRepository.php';
+require_once 'includes/classes/ScheduleRepository.php';
 
 require_role(['employe', 'admin']);
 
+$allergenRepository = new AllergenRepository($pdo);
+$dishRepository = new DishRepository($pdo);
+$menuRepository = new MenuRepository($pdo);
+$orderRepository = new OrderRepository($pdo);
+$reviewRepository = new ReviewRepository($pdo);
+$scheduleRepository = new ScheduleRepository($pdo);
 $message = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -155,38 +167,12 @@ function posted_image_names(string $field): array
     return array_values(array_unique($images));
 }
 
-function menu_all_image_files(PDO $pdo, int $idMenu): array
-{
-    $images = [];
-
-    $stmt = $pdo->prepare("SELECT image FROM menu WHERE id_menu = ?");
-    $stmt->execute([$idMenu]);
-    $mainImage = $stmt->fetchColumn();
-
-    if ($mainImage) {
-        $images[] = basename((string) $mainImage);
-    }
-
-    $stmt = $pdo->prepare("SELECT chemin FROM menu_image WHERE id_menu = ?");
-    $stmt->execute([$idMenu]);
-
-    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $image) {
-        $image = basename((string) $image);
-
-        if ($image !== '') {
-            $images[] = $image;
-        }
-    }
-
-    return array_values(array_unique($images));
-}
-
 function is_managed_menu_image(string $image): bool
 {
     return (bool) preg_match('/^menu_[0-9]{8}_[0-9]{6}_[a-f0-9]{16}\.(jpg|png|webp|avif)$/', basename($image));
 }
 
-function delete_uploaded_menu_image_if_unused(PDO $pdo, string $image): void
+function delete_uploaded_menu_image_if_unused(MenuRepository $menuRepository, string $image): void
 {
     $image = basename($image);
 
@@ -194,14 +180,7 @@ function delete_uploaded_menu_image_if_unused(PDO $pdo, string $image): void
         return;
     }
 
-    $stmt = $pdo->prepare("
-        SELECT
-            (SELECT COUNT(*) FROM menu WHERE image = ?)
-            + (SELECT COUNT(*) FROM menu_image WHERE chemin = ?) AS total_refs
-    ");
-    $stmt->execute([$image, $image]);
-
-    if ((int) $stmt->fetchColumn() > 0) {
+    if ($menuRepository->isImageReferenced($image)) {
         return;
     }
 
@@ -212,58 +191,10 @@ function delete_uploaded_menu_image_if_unused(PDO $pdo, string $image): void
     }
 }
 
-function delete_uploaded_menu_images_if_unused(PDO $pdo, array $images): void
+function delete_uploaded_menu_images_if_unused(MenuRepository $menuRepository, array $images): void
 {
     foreach (array_unique(array_map('basename', $images)) as $image) {
-        delete_uploaded_menu_image_if_unused($pdo, $image);
-    }
-}
-
-function sync_menu_images(PDO $pdo, int $idMenu, string $mainImage, array $galleryImages): void
-{
-    $images = [];
-
-    foreach ($galleryImages as $image) {
-        $image = basename((string) $image);
-
-        if ($image !== '') {
-            $images[] = $image;
-        }
-    }
-
-    if ($mainImage !== '' && !in_array($mainImage, $images, true)) {
-        array_unshift($images, $mainImage);
-    }
-
-    $images = array_values(array_unique($images));
-
-    $pdo->prepare("DELETE FROM menu_image WHERE id_menu = ?")->execute([$idMenu]);
-    $insert = $pdo->prepare("INSERT INTO menu_image (chemin, id_menu) VALUES (?, ?)");
-
-    foreach ($images as $image) {
-        if ($image !== '') {
-            $insert->execute([$image, $idMenu]);
-        }
-    }
-}
-
-function sync_menu_plats(PDO $pdo, int $idMenu, array $plats): void
-{
-    $pdo->prepare("DELETE FROM menu_plat WHERE id_menu = ?")->execute([$idMenu]);
-    $insert = $pdo->prepare("INSERT INTO menu_plat (id_menu, id_plat) VALUES (?, ?)");
-
-    foreach ($plats as $idPlat) {
-        $insert->execute([$idMenu, $idPlat]);
-    }
-}
-
-function sync_plat_allergenes(PDO $pdo, int $idPlat, array $allergenes): void
-{
-    $pdo->prepare("DELETE FROM plat_allergene WHERE id_plat = ?")->execute([$idPlat]);
-    $insert = $pdo->prepare("INSERT INTO plat_allergene (id_plat, id_allergene) VALUES (?, ?)");
-
-    foreach ($allergenes as $idAllergene) {
-        $insert->execute([$idPlat, $idAllergene]);
+        delete_uploaded_menu_image_if_unused($menuRepository, $image);
     }
 }
 
@@ -282,26 +213,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_statut_command
             ensure_order_history_table($pdo);
             $pdo->beginTransaction();
 
-            $req = $pdo->prepare("
-                SELECT c.*, u.email, u.prenom, m.titre
-                FROM commande c
-                JOIN utilisateur u ON c.id_utilisateur = u.id_utilisateur
-                JOIN menu m ON c.id_menu = m.id_menu
-                WHERE c.id_commande = ?
-                FOR UPDATE
-            ");
-            $req->execute([$idCmd]);
-            $commande = $req->fetch(PDO::FETCH_ASSOC);
+            $commande = $orderRepository->findForEmployeeStatusUpdate($idCmd);
 
             if (!$commande) {
                 throw new RuntimeException('Commande introuvable.');
             }
 
             $ancienStatut = normalize_order_status($commande['statut'] ?? '');
-            $pdo->prepare("UPDATE commande SET statut = ? WHERE id_commande = ?")->execute([$nouveauStatut, $idCmd]);
+
+            if (!$orderRepository->updateStatus($idCmd, $nouveauStatut)) {
+                throw new RuntimeException('Impossible de mettre a jour le statut.');
+            }
 
             if ($nouveauStatut === 'annulee' && $ancienStatut !== 'annulee') {
-                $pdo->prepare("UPDATE menu SET stock = stock + 1 WHERE id_menu = ?")->execute([(int) $commande['id_menu']]);
+                $menuRepository->increaseStock((int) $commande['id_menu']);
             }
 
             $commentaire = $motif !== '' ? "Contact: $modeContact. Motif: $motif" : 'Mise à jour par un employé.';
@@ -343,10 +268,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_avis'], $_POST
     $action = $_POST['action_avis'];
 
     if ($action === 'valider') {
-        $pdo->prepare("UPDATE avis SET statut = 'validé' WHERE id_avis = ?")->execute([$idAvis]);
+        $reviewRepository->updateStatus($idAvis, 'validé');
         $message = "<div class='alert-success'>L'avis a été validé et sera visible sur l'accueil.</div>";
     } elseif ($action === 'refuser') {
-        $pdo->prepare("UPDATE avis SET statut = 'refusé' WHERE id_avis = ?")->execute([$idAvis]);
+        $reviewRepository->updateStatus($idAvis, 'refusé');
         $message = "<div class='alert-success'>L'avis a été refusé et masqué.</div>";
     }
 }
@@ -357,7 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_modifier_horai
     $heures = clean_text_input($_POST['heures'] ?? '', 50);
 
     if ($jour !== '' && $heures !== '') {
-        $pdo->prepare("UPDATE horaire SET jour = ?, heures = ? WHERE id_horaire = ?")->execute([$jour, $heures, $idHoraire]);
+        $scheduleRepository->update($idHoraire, $jour, $heures);
         $message = "<div class='alert-success'>L'horaire a été mis à jour.</div>";
     }
 }
@@ -379,16 +304,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_save'])) 
 
     try {
         if ($idMenu > 0) {
-            $reqMenu = $pdo->prepare("SELECT * FROM menu WHERE id_menu = ?");
-            $reqMenu->execute([$idMenu]);
-            $menuActuel = $reqMenu->fetch(PDO::FETCH_ASSOC);
+            $menuActuel = $menuRepository->findById($idMenu);
 
             if (!$menuActuel) {
                 throw new RuntimeException('Menu introuvable.');
             }
 
             $image = basename((string) $menuActuel['image']);
-            $anciennesImages = menu_all_image_files($pdo, $idMenu);
+            $anciennesImages = $menuRepository->findAllImageFiles($idMenu);
         } else {
             $image = '';
         }
@@ -412,42 +335,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_save'])) 
 
         $imagesGalerie = array_merge($imagesGalerieExistantes, $nouvellesImagesGalerie);
 
-        $pdo->beginTransaction();
-
-        if ($idMenu > 0) {
-            $stmt = $pdo->prepare("
-                UPDATE menu
-                SET titre = ?, image = ?, description = ?, theme = ?, nb_personnes_min = ?, prix_min = ?, conditions = ?, regime = ?, stock = ?
-                WHERE id_menu = ?
-            ");
-            $stmt->execute([$titre, $image, $description, $theme, $nbMin, $prixMin, $conditions, $regime, $stock, $idMenu]);
-        } else {
-            $stmt = $pdo->prepare("
-                INSERT INTO menu (titre, image, description, theme, nb_personnes_min, prix_min, conditions, regime, stock)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([$titre, $image, $description, $theme, $nbMin, $prixMin, $conditions, $regime, $stock]);
-            $idMenu = (int) $pdo->lastInsertId();
-        }
-
-        sync_menu_images($pdo, $idMenu, $image, $imagesGalerie);
-        sync_menu_plats($pdo, $idMenu, $platsMenu);
-        $pdo->commit();
+        $idMenu = $menuRepository->saveWithRelations(
+            $idMenu,
+            $titre,
+            $image,
+            $description,
+            $theme,
+            $nbMin,
+            $prixMin,
+            $conditions,
+            $regime,
+            $stock,
+            $platsMenu,
+            $imagesGalerie
+        );
 
         try {
-            delete_uploaded_menu_images_if_unused($pdo, $anciennesImages);
+            delete_uploaded_menu_images_if_unused($menuRepository, $anciennesImages);
         } catch (Throwable $cleanupError) {
             error_log($cleanupError->getMessage());
         }
 
         $message = "<div class='alert-success'>Menu enregistré.</div>";
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-
         try {
-            delete_uploaded_menu_images_if_unused($pdo, $imagesUploadees);
+            delete_uploaded_menu_images_if_unused($menuRepository, $imagesUploadees);
         } catch (Throwable $cleanupError) {
             error_log($cleanupError->getMessage());
         }
@@ -459,26 +371,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_save'])) 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_menu_delete'])) {
     $idMenu = (int) $_POST['id_menu'];
-    $imagesASupprimer = menu_all_image_files($pdo, $idMenu);
+    $imagesASupprimer = $menuRepository->findAllImageFiles($idMenu);
 
     try {
-        $pdo->beginTransaction();
-        $pdo->prepare("DELETE FROM menu_image WHERE id_menu = ?")->execute([$idMenu]);
-        $pdo->prepare("DELETE FROM menu_plat WHERE id_menu = ?")->execute([$idMenu]);
-        $pdo->prepare("DELETE FROM menu WHERE id_menu = ?")->execute([$idMenu]);
-        $pdo->commit();
+        $menuRepository->deleteWithRelations($idMenu);
 
         try {
-            delete_uploaded_menu_images_if_unused($pdo, $imagesASupprimer);
+            delete_uploaded_menu_images_if_unused($menuRepository, $imagesASupprimer);
         } catch (Throwable $cleanupError) {
             error_log($cleanupError->getMessage());
         }
         $message = "<div class='alert-success'>Menu supprimé.</div>";
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-
         error_log($e->getMessage());
         $message = "<div class='alert-error'>Impossible de supprimer ce menu car il est peut-être lié à une commande.</div>";
     }
@@ -496,22 +400,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_plat_save'])) 
     }
 
     try {
-        $pdo->beginTransaction();
-
-        if ($idPlat > 0) {
-            $pdo->prepare("UPDATE plat SET nom = ?, categorie = ? WHERE id_plat = ?")->execute([$nom, $categorie, $idPlat]);
-        } else {
-            $pdo->prepare("INSERT INTO plat (nom, categorie) VALUES (?, ?)")->execute([$nom, $categorie]);
-            $idPlat = (int) $pdo->lastInsertId();
-        }
-
-        sync_plat_allergenes($pdo, $idPlat, $allergenesPlat);
-        $pdo->commit();
+        $dishRepository->saveWithAllergens($idPlat, $nom, $categorie, $allergenesPlat);
         $message = "<div class='alert-success'>Plat enregistré.</div>";
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
         error_log($e->getMessage());
         $message = "<div class='alert-error'>Impossible d'enregistrer le plat.</div>";
     }
@@ -521,9 +412,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_plat_delete'])
     $idPlat = (int) $_POST['id_plat'];
 
     try {
-        $pdo->prepare("DELETE FROM menu_plat WHERE id_plat = ?")->execute([$idPlat]);
-        $pdo->prepare("DELETE FROM plat_allergene WHERE id_plat = ?")->execute([$idPlat]);
-        $pdo->prepare("DELETE FROM plat WHERE id_plat = ?")->execute([$idPlat]);
+        $dishRepository->delete($idPlat);
         $message = "<div class='alert-success'>Plat supprimé.</div>";
     } catch (Throwable $e) {
         error_log($e->getMessage());
@@ -535,82 +424,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_allergene_save
     $nom = clean_text_input($_POST['nom_allergene'] ?? '', 100);
 
     if ($nom !== '') {
-        $pdo->prepare("INSERT IGNORE INTO allergene (nom) VALUES (?)")->execute([$nom]);
+        $allergenRepository->createIfMissing($nom);
         $message = "<div class='alert-success'>Allergène enregistré.</div>";
     }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_allergene_delete'])) {
     $idAllergene = (int) $_POST['id_allergene'];
-    $pdo->prepare("DELETE FROM plat_allergene WHERE id_allergene = ?")->execute([$idAllergene]);
-    $pdo->prepare("DELETE FROM allergene WHERE id_allergene = ?")->execute([$idAllergene]);
-    $message = "<div class='alert-success'>Allergène supprimé.</div>";
-}
 
-$where = [];
-$params = [];
-
-if (!empty($_GET['filtre_statut'])) {
-    $statusValues = order_status_database_values($_GET['filtre_statut']);
-    $where[] = "c.statut IN (" . implode(',', array_fill(0, count($statusValues), '?')) . ")";
-    foreach ($statusValues as $statusValue) {
-        $params[] = $statusValue;
+    try {
+        $allergenRepository->delete($idAllergene);
+        $message = "<div class='alert-success'>Allergène supprimé.</div>";
+    } catch (Throwable $e) {
+        error_log($e->getMessage());
+        $message = "<div class='alert-error'>Impossible de supprimer cet allergène.</div>";
     }
 }
 
-if (!empty($_GET['filtre_client'])) {
-    $where[] = "(u.nom LIKE ? OR u.prenom LIKE ? OR u.email LIKE ?)";
-    $search = '%' . trim($_GET['filtre_client']) . '%';
-    $params[] = $search;
-    $params[] = $search;
-    $params[] = $search;
+$statusValues = [];
+
+if (!empty($_GET['filtre_statut'])) {
+    $statusValues = order_status_database_values($_GET['filtre_statut']);
 }
 
-$sqlCommandes = "
-    SELECT c.*, m.titre as menu_titre, u.nom, u.prenom, u.gsm, u.email
-    FROM commande c
-    JOIN menu m ON c.id_menu = m.id_menu
-    JOIN utilisateur u ON c.id_utilisateur = u.id_utilisateur
-";
+$filtreClient = trim($_GET['filtre_client'] ?? '');
+$commandes = $orderRepository->findForEmployeeBoard($statusValues, $filtreClient);
 
-if ($where) {
-    $sqlCommandes .= " WHERE " . implode(" AND ", $where);
-}
-
-$sqlCommandes .= " ORDER BY c.date_prestation ASC";
-$reqCommandes = $pdo->prepare($sqlCommandes);
-$reqCommandes->execute($params);
-$commandes = $reqCommandes->fetchAll(PDO::FETCH_ASSOC);
-
-$avisEnAttente = $pdo->query("
-    SELECT a.*, u.nom, u.prenom, m.titre as menu_titre
-    FROM avis a
-    JOIN utilisateur u ON a.id_utilisateur = u.id_utilisateur
-    JOIN commande c ON a.id_commande = c.id_commande
-    JOIN menu m ON c.id_menu = m.id_menu
-    WHERE a.statut = 'en attente'
-    ORDER BY a.id_avis DESC
-")->fetchAll(PDO::FETCH_ASSOC);
-
-$horaires = $pdo->query("SELECT * FROM horaire ORDER BY id_horaire ASC")->fetchAll(PDO::FETCH_ASSOC);
-$menus = $pdo->query("SELECT * FROM menu ORDER BY id_menu DESC")->fetchAll(PDO::FETCH_ASSOC);
-$plats = $pdo->query("SELECT * FROM plat ORDER BY categorie, nom")->fetchAll(PDO::FETCH_ASSOC);
-$allergenes = $pdo->query("SELECT * FROM allergene ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
-
-$menuPlatMap = [];
-foreach ($pdo->query("SELECT id_menu, id_plat FROM menu_plat")->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $menuPlatMap[(int) $row['id_menu']][] = (int) $row['id_plat'];
-}
-
-$menuImageMap = [];
-foreach ($pdo->query("SELECT id_menu, chemin FROM menu_image ORDER BY id_image ASC")->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $menuImageMap[(int) $row['id_menu']][] = $row['chemin'];
-}
-
-$platAllergeneMap = [];
-foreach ($pdo->query("SELECT id_plat, id_allergene FROM plat_allergene")->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $platAllergeneMap[(int) $row['id_plat']][] = (int) $row['id_allergene'];
-}
+$avisEnAttente = $reviewRepository->findPending();
+$horaires = $scheduleRepository->findAll();
+$menus = $menuRepository->findAllForEmployeeBoard();
+$plats = $dishRepository->findAll();
+$allergenes = $allergenRepository->findAll();
+$menuPlatMap = $menuRepository->findDishMap();
+$menuImageMap = $menuRepository->findImageMap();
+$platAllergeneMap = $dishRepository->findAllergenMap();
 
 include 'includes/header.php';
 ?>
@@ -621,12 +468,12 @@ include 'includes/header.php';
     <?php if(!empty($message)) echo $message; ?>
 
     <div class="dashboard-grid">
-        <div class="glass-panel p-4" style="grid-column: 1 / -1;">
+        <div class="glass-panel p-4 dashboard-panel-full">
             <h4 class="text-white mb-4 border-bottom border-secondary pb-2"><i class="fa-solid fa-bell-concierge"></i> Gestion des Commandes</h4>
 
-            <form method="GET" action="" class="mb-4" style="display:flex; gap:1rem; flex-wrap:wrap;">
+            <form method="GET" action="" class="mb-4 employee-filter-form">
                 <label class="visually-hidden" for="filtre_statut">Filtrer par statut</label>
-                <select id="filtre_statut" name="filtre_statut" class="form-control" style="max-width:260px;">
+                <select id="filtre_statut" name="filtre_statut" class="form-control employee-filter-field">
                     <option value="">Tous les statuts</option>
                     <?php foreach(ORDER_STATUSES as $statut): ?>
                         <option value="<?php echo htmlspecialchars($statut); ?>" <?php echo (normalize_order_status($_GET['filtre_statut'] ?? '') === $statut) ? 'selected' : ''; ?>>
@@ -635,7 +482,7 @@ include 'includes/header.php';
                     <?php endforeach; ?>
                 </select>
                 <label class="visually-hidden" for="filtre_client">Filtrer par client</label>
-                <input id="filtre_client" type="text" name="filtre_client" class="form-control" style="max-width:260px;" placeholder="Client, email..." value="<?php echo htmlspecialchars($_GET['filtre_client'] ?? ''); ?>">
+                <input id="filtre_client" type="text" name="filtre_client" class="form-control employee-filter-field" placeholder="Client, email..." value="<?php echo htmlspecialchars($_GET['filtre_client'] ?? ''); ?>">
                 <button type="submit" class="btn-action-small btn-primary border-0">Filtrer</button>
                 <a href="espace_employe" class="btn-action-small btn-outline">Réinitialiser</a>
             </form>
@@ -665,7 +512,7 @@ include 'includes/header.php';
                                 </td>
                                 <td><span class="badge-status <?php echo order_status_badge_class($cmd['statut']); ?>"><?php echo htmlspecialchars(order_status_label($cmd['statut'])); ?></span></td>
                                 <td>
-                                    <form method="POST" action="" style="display:grid; gap:.5rem;">
+                                    <form method="POST" action="" class="status-update-form">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action_statut_commande" value="1">
                                         <input type="hidden" name="id_commande" value="<?php echo (int)$cmd['id_commande']; ?>">
@@ -693,7 +540,7 @@ include 'includes/header.php';
             </div>
         </div>
 
-        <div class="glass-panel p-4" style="grid-column: 1 / -1;">
+        <div class="glass-panel p-4 dashboard-panel-full">
             <h4 class="text-white mb-4 border-bottom border-secondary pb-2">Gestion des Menus</h4>
             <form method="POST" action="" class="mb-4" enctype="multipart/form-data">
                 <?php echo csrf_field(); ?>
@@ -741,16 +588,16 @@ include 'includes/header.php';
                                 <td><?php echo htmlspecialchars($menu['prix_min']); ?> EUR</td>
                                 <td><?php echo (int)($menu['stock'] ?? 0); ?></td>
                                 <td>
-                                    <form method="POST" action="" style="display:inline;">
+                                    <form method="POST" action="" class="inline-form" data-confirm="Supprimer ce menu ?">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action_menu_delete" value="1">
                                         <input type="hidden" name="id_menu" value="<?php echo (int)$menu['id_menu']; ?>">
-                                        <button type="submit" class="btn-action-small btn-outline text-danger border-danger" onclick="return confirm('Supprimer ce menu ?');">Supprimer</button>
+                                        <button type="submit" class="btn-action-small btn-outline text-danger border-danger">Supprimer</button>
                                     </form>
                                 </td>
                             </tr>
                             <tr>
-                                <td colspan="5" style="background:rgba(255,255,255,0.03);">
+                                <td colspan="5" class="menu-edit-cell">
                                     <form method="POST" action="" enctype="multipart/form-data">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="action_menu_save" value="1">
@@ -760,18 +607,18 @@ include 'includes/header.php';
                                         <label class="form-label">Image principale</label>
                                         <?php if(!empty($menu['image'])): ?>
                                             <div class="mb-2">
-                                                <img src="assets/images/<?php echo htmlspecialchars(basename($menu['image'])); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - image principale'); ?>" style="width:90px;height:70px;object-fit:cover;border-radius:8px;">
+                                                <img src="assets/images/<?php echo htmlspecialchars(basename($menu['image'])); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - image principale'); ?>" class="menu-main-thumb">
                                             </div>
                                         <?php endif; ?>
                                         <input type="file" name="image_principale" class="form-control" accept="image/jpeg,image/png,image/webp,image/avif">
                                         <label class="form-label">Galerie d'images</label>
                                         <?php if(!empty($selectedImages)): ?>
-                                            <div class="mb-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;">
+                                            <div class="mb-3 menu-gallery-editor">
                                                 <?php foreach($selectedImages as $imageExistante): ?>
                                                     <?php $imageExistante = basename($imageExistante); ?>
-                                                    <label style="display:flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.04);padding:.5rem;border-radius:8px;">
+                                                    <label class="menu-gallery-option">
                                                         <input type="checkbox" name="images_galerie_existantes[]" value="<?php echo htmlspecialchars($imageExistante); ?>" checked>
-                                                        <img src="assets/images/<?php echo htmlspecialchars($imageExistante); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - galerie'); ?>" style="width:56px;height:42px;object-fit:cover;border-radius:6px;">
+                                                        <img src="assets/images/<?php echo htmlspecialchars($imageExistante); ?>" alt="<?php echo htmlspecialchars($menu['titre'] . ' - galerie'); ?>" class="menu-gallery-thumb">
                                                         <span class="small text-muted"><?php echo htmlspecialchars($imageExistante); ?></span>
                                                     </label>
                                                 <?php endforeach; ?>
@@ -853,7 +700,7 @@ include 'includes/header.php';
                         <?php endforeach; ?>
                     </select>
                     <button type="submit" name="action_plat_save" value="1" class="btn-action-small btn-primary border-0">Modifier</button>
-                    <button type="submit" name="action_plat_delete" value="1" class="btn-action-small btn-outline text-danger border-danger" onclick="return confirm('Supprimer ce plat ?');">Supprimer</button>
+                    <button type="submit" name="action_plat_delete" value="1" class="btn-action-small btn-outline text-danger border-danger" data-confirm-click="Supprimer ce plat ?">Supprimer</button>
                 </form>
             <?php endforeach; ?>
         </div>
@@ -867,7 +714,7 @@ include 'includes/header.php';
                 <button type="submit" name="action_allergene_save" value="1" class="btn-primary border-0">Ajouter</button>
             </form>
             <?php foreach($allergenes as $allergene): ?>
-                <form method="POST" action="" style="display:flex; gap:.5rem; align-items:center; margin-bottom:.5rem;">
+                <form method="POST" action="" class="allergen-row-form">
                     <?php echo csrf_field(); ?>
                     <input type="hidden" name="id_allergene" value="<?php echo (int)$allergene['id_allergene']; ?>">
                     <span><?php echo htmlspecialchars($allergene['nom']); ?></span>
@@ -887,7 +734,7 @@ include 'includes/header.php';
                         <strong class="text-gold"><?php echo htmlspecialchars($avis['nom'] . ' ' . $avis['prenom']); ?></strong>
                         <p class="small text-muted mb-2">Menu : <?php echo htmlspecialchars($avis['menu_titre']); ?></p>
                         <p class="fst-italic mb-3">"<?php echo htmlspecialchars($avis['commentaire']); ?>"</p>
-                        <form method="POST" action="" style="display:inline;">
+                        <form method="POST" action="" class="inline-form">
                             <?php echo csrf_field(); ?>
                             <input type="hidden" name="id_avis" value="<?php echo (int)$avis['id_avis']; ?>">
                             <button type="submit" name="action_avis" value="valider" class="btn-action-small btn-outline text-success border-success">Valider</button>

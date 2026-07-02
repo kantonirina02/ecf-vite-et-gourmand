@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($envoi_reussi) {
             $message_alerte = "<div class='alert-success mb-4'>Votre message a bien été envoyé à notre équipe. Nous vous répondrons dans les plus brefs délais !</div>";
         } else {
-            $message_alerte = "<div class='alert-success mb-4'>Votre message a bien ete enregistre. L'envoi email sera traite par la configuration de l'hebergeur.</div>";
+            $message_alerte = "<div class='alert-success mb-4'>Merci, votre message a bien été pris en compte. Notre équipe vous répondra dans les plus brefs délais.</div>";
         }
     } else {
         $message_alerte = "<div class='alert-error mb-4'>Veuillez remplir tous les champs correctement avec une adresse email valide.</div>";
@@ -60,11 +60,11 @@ include 'includes/header.php';
 
                     <div class="mb-4">
                         <label class="form-label text-warning">Description (Votre message)</label>
-                        <textarea name="description" class="form-control" rows="6" placeholder="Détaillez votre demande ici..." required style="resize: vertical;"></textarea>
+                        <textarea name="description" class="form-control textarea-resizable" rows="6" placeholder="Détaillez votre demande ici..." required></textarea>
                     </div>
 
                     <div class="text-center">
-                        <button type="submit" class="btn-primary border-0 w-100" style="padding: 1rem; font-size: 1.1rem;">
+                        <button type="submit" class="btn-primary border-0 w-100 btn-submit-large">
                             Envoyer le message
                         </button>
                     </div>

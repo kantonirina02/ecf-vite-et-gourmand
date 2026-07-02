@@ -1,21 +1,15 @@
 <?php
 require_once 'includes/security.php';
 require_once 'includes/db.php';
+require_once 'includes/classes/PasswordResetRepository.php';
+require_once 'includes/classes/UserRepository.php';
 
 $message = "";
+$passwordResetRepository = new PasswordResetRepository($pdo);
+$userRepository = new UserRepository($pdo);
 
 try {
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS password_reset (
-            id_reset INT AUTO_INCREMENT PRIMARY KEY,
-            email VARCHAR(255) NOT NULL,
-            token_hash VARCHAR(255) NOT NULL,
-            expires_at DATETIME NOT NULL,
-            used_at DATETIME NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_password_reset_token (email, expires_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
+    $passwordResetRepository->ensureTable();
 } catch (Throwable $e) {
     error_log($e->getMessage());
 }
@@ -29,18 +23,10 @@ $token = $_GET['token'];
 $email = trim($_GET['email']);
 
 try {
-    $req = $pdo->prepare("
-        SELECT id_reset, token_hash, expires_at, used_at
-        FROM password_reset
-        WHERE email = ?
-        ORDER BY id_reset DESC
-        LIMIT 1
-    ");
-    $req->execute([$email]);
-    $reset = $req->fetch(PDO::FETCH_ASSOC);
+    $reset = $passwordResetRepository->findLatestByEmail($email);
 } catch (Throwable $e) {
     error_log($e->getMessage());
-    $reset = false;
+    $reset = null;
 }
 
 if (
@@ -64,9 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $hash = password_hash($nouveau_mdp, PASSWORD_DEFAULT);
 
-        $update = $pdo->prepare("UPDATE utilisateur SET mot_de_passe = ? WHERE email = ?");
-        if ($update->execute([$hash, $email])) {
-            $pdo->prepare("UPDATE password_reset SET used_at = NOW() WHERE id_reset = ?")->execute([$reset['id_reset']]);
+        if ($userRepository->updatePasswordByEmail($email, $hash)) {
+            $passwordResetRepository->markUsed((int) $reset['id_reset']);
             $message = "<div class='alert-success mb-4'>Votre mot de passe a ete mis a jour avec succes ! <br><a href='login' class='fw-bold text-success'>Cliquez ici pour vous connecter</a></div>";
         }
     }

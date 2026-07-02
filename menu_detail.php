@@ -1,45 +1,23 @@
 <?php
 require_once 'includes/db.php';
+require_once 'includes/classes/MenuRepository.php';
 
-// Récupération et sécurité de l'ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     header('Location: menus');
     exit;
 }
 $id_menu = (int) $_GET['id'];
+$menuRepository = new MenuRepository($pdo);
 
-// Requête pour le Menu (Informations principales)
-$requete = $pdo->prepare("SELECT * FROM menu WHERE id_menu = :id");
-$requete->execute(['id' => $id_menu]);
-$menu = $requete->fetch(PDO::FETCH_ASSOC);
+$menu = $menuRepository->findById($id_menu);
 
 if (!$menu) {
     header('Location: menus');
     exit;
 }
 
-// Requête pour les Plats et Allergènes (Triple Jointure SQL)
-// relié 'plat', 'menu_plat', 'plat_allergene' et 'allergene'
-$req_plats = $pdo->prepare("
-    SELECT
-        p.id_plat,
-        p.nom,
-        p.categorie,
-        GROUP_CONCAT(a.nom SEPARATOR ', ') as allergenes
-    FROM plat p
-    JOIN menu_plat mp ON p.id_plat = mp.id_plat
-    LEFT JOIN plat_allergene pa ON p.id_plat = pa.id_plat
-    LEFT JOIN allergene a ON pa.id_allergene = a.id_allergene
-    WHERE mp.id_menu = :id
-    GROUP BY p.id_plat
-    ORDER BY FIELD(LOWER(p.categorie), 'entrée', 'plat', 'dessert')
-");
-$req_plats->execute(['id' => $id_menu]);
-$platsDuMenu = $req_plats->fetchAll(PDO::FETCH_ASSOC);
-
-$req_images = $pdo->prepare("SELECT chemin FROM menu_image WHERE id_menu = ? ORDER BY id_image ASC");
-$req_images->execute([$id_menu]);
-$imagesMenu = array_column($req_images->fetchAll(PDO::FETCH_ASSOC), 'chemin');
+$platsDuMenu = $menuRepository->findDishesWithAllergens($id_menu);
+$imagesMenu = $menuRepository->findImagePaths($id_menu);
 
 if (empty($imagesMenu) && !empty($menu['image'])) {
     $imagesMenu = [$menu['image']];
@@ -60,20 +38,20 @@ include 'includes/header.php';
             <div class="col-lg-7">
                 <div class="mb-4">
                     <span class="menu-tag me-2"><?php echo htmlspecialchars($menu['theme'] ?? ''); ?></span>
-                    <span class="menu-tag" style="background:rgba(16, 185, 129, 0.1); color:var(--success)">
+                    <span class="menu-tag menu-tag-regime">
                         <?php echo strtoupper(htmlspecialchars($menu['regime'] ?? '')); ?>
                     </span>
                 </div>
-                <p class="text-muted" style="font-size: 1.1rem; line-height: 1.8;">
+                <p class="text-muted menu-detail-description">
                     <?php echo nl2br(htmlspecialchars($menu['description'] ?? '')); ?>
                 </p>
             </div>
 
             <div class="col-lg-5">
-                <div class="glass-panel p-4" style="background: rgba(0,0,0,0.3);">
-                    <div class="text-gold fw-bold mb-3" style="font-size: 2.5rem;">
+                <div class="glass-panel p-4 menu-order-panel">
+                    <div class="text-gold fw-bold mb-3 menu-detail-price">
                         <?php echo number_format($menu['prix_min'] ?? 0, 0, ',', ' '); ?>€
-                        <span class="text-muted fw-normal" style="font-size: 1rem;">/ personne</span>
+                        <span class="text-muted fw-normal menu-detail-price-unit">/ personne</span>
                     </div>
 
                     <div class="text-white fw-bold mb-3">
@@ -91,7 +69,7 @@ include 'includes/header.php';
                             Commander ce menu
                         </a>
                     <?php else: ?>
-                        <button class="btn-primary w-100 border-0" type="button" disabled style="opacity:.55; cursor:not-allowed;">
+                        <button class="btn-primary w-100 border-0 btn-disabled-stock" type="button" disabled>
                             Stock indisponible
                         </button>
                     <?php endif; ?>
@@ -118,7 +96,7 @@ include 'includes/header.php';
                     <div class="dish-type">
                         <?php echo htmlspecialchars($plat['categorie'] ?? ''); ?>
                     </div>
-                    <div class="text-white fw-bold mt-1" style="font-size:1.1rem;">
+                    <div class="text-white fw-bold mt-1 dish-name">
                         <?php echo htmlspecialchars($plat['nom'] ?? ''); ?>
                     </div>
                 </div>

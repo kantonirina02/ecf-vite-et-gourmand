@@ -3,9 +3,11 @@ require_once 'includes/security.php';
 require_once 'includes/db.php';
 require_once 'includes/mailer.php';
 require_once 'includes/nosql_stats.php';
+require_once 'includes/classes/UserRepository.php';
 
 require_role(['admin']);
 
+$userRepository = new UserRepository($pdo);
 $message = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -24,16 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_creer_employe'
     } elseif (!preg_match($regex_mdp, $mot_de_passe)) {
         $message = "<div class='alert-error'>Le mot de passe doit contenir 10 caracteres, une majuscule, une minuscule, un chiffre et un caractere special.</div>";
     } else {
-        $check_email = $pdo->prepare("SELECT id_utilisateur FROM utilisateur WHERE email = ?");
-        $check_email->execute([$email]);
-
-        if ($check_email->fetch()) {
+        if ($userRepository->emailExists($email)) {
             $message = "<div class='alert-error'>Cet email est deja utilise.</div>";
         } else {
             $hash = password_hash($mot_de_passe, PASSWORD_DEFAULT);
-            $insert = $pdo->prepare("INSERT INTO utilisateur (nom, prenom, email, mot_de_passe, role, statut_compte) VALUES (?, ?, ?, ?, 'employe', 'actif')");
 
-            if ($insert->execute([$nom, $prenom, $email, $hash])) {
+            if ($userRepository->createEmployee($nom, $prenom, $email, $hash)) {
                 $body = "Bonjour $prenom,\n\nUn compte employe Vite & Gourmand a ete cree pour vous.\n";
                 $body .= "Le mot de passe ne figure pas dans cet email. Rapprochez-vous de l'administrateur pour l'obtenir.\n\n";
                 $body .= "L'equipe Vite & Gourmand.";
@@ -48,14 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_statut'], $_PO
     $id_employe = (int)$_POST['id_employe'];
     $nouveau_statut = $_POST['action_statut'] === 'desactiver' ? 'inactif' : 'actif';
 
-    $update = $pdo->prepare("UPDATE utilisateur SET statut_compte = ? WHERE id_utilisateur = ? AND role = 'employe'");
-    if ($update->execute([$nouveau_statut, $id_employe])) {
+    if ($userRepository->updateEmployeeStatus($id_employe, $nouveau_statut)) {
         $message = "<div class='alert-success'>Le statut de l'employe a ete mis a jour.</div>";
     }
 }
 
-$req_employes = $pdo->query("SELECT * FROM utilisateur WHERE role = 'employe' ORDER BY nom ASC");
-$employes = $req_employes ? $req_employes->fetchAll(PDO::FETCH_ASSOC) : [];
+$employes = $userRepository->findEmployees();
 
 nosql_sync_stats_from_sql($pdo);
 $stats = nosql_read_stats();
@@ -99,7 +95,7 @@ include 'includes/header.php';
 <div class="container py-5 mt-5">
     <div class="d-flex justify-content-between align-items-center mb-5 border-bottom border-warning pb-3">
         <h2 class="logo-font text-gold m-0">Espace Administrateur</h2>
-        <a href="espace_employe" class="btn-outline border-warning text-warning" style="padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none;">
+        <a href="espace_employe" class="btn-outline border-warning text-warning admin-panel-link">
             <i class="fa-solid fa-arrow-right"></i> Aller au panel Employe
         </a>
     </div>
@@ -151,13 +147,13 @@ include 'includes/header.php';
                                     </td>
                                     <td>
                                         <?php if(($emp['statut_compte'] ?? 'actif') === 'actif'): ?>
-                                            <form method="POST" action="" style="display:inline;" onsubmit="return confirm('Rendre ce compte inutilisable ?');">
+                                            <form method="POST" action="" class="inline-form" data-confirm="Rendre ce compte inutilisable ?">
                                                 <?php echo csrf_field(); ?>
                                                 <input type="hidden" name="id_employe" value="<?php echo (int)$emp['id_utilisateur']; ?>">
                                                 <button type="submit" name="action_statut" value="desactiver" class="btn-action-small btn-outline text-danger border-danger">Desactiver</button>
                                             </form>
                                         <?php else: ?>
-                                            <form method="POST" action="" style="display:inline;">
+                                            <form method="POST" action="" class="inline-form">
                                                 <?php echo csrf_field(); ?>
                                                 <input type="hidden" name="id_employe" value="<?php echo (int)$emp['id_utilisateur']; ?>">
                                                 <button type="submit" name="action_statut" value="activer" class="btn-action-small btn-outline text-success border-success">Reactiver</button>
@@ -174,8 +170,8 @@ include 'includes/header.php';
             <div class="mt-5 pt-4 border-top border-secondary">
                 <h4 class="text-gold mb-4"><i class="fa-solid fa-chart-pie"></i> Statistiques des Commandes</h4>
 
-                <form method="GET" action="" class="mb-4" style="display:flex; gap:1rem; flex-wrap:wrap;">
-                    <select name="stats_menu" class="form-control" style="max-width:220px;">
+                <form method="GET" action="" class="mb-4 stats-filter-form">
+                    <select name="stats_menu" class="form-control stats-menu-select">
                         <option value="">Tous les menus</option>
                         <?php foreach($stats as $entry): ?>
                             <option value="<?php echo htmlspecialchars($entry['id_menu']); ?>" <?php echo ((string)$filtre_menu === (string)$entry['id_menu']) ? 'selected' : ''; ?>>
@@ -183,16 +179,24 @@ include 'includes/header.php';
                             </option>
                         <?php endforeach; ?>
                     </select>
-                    <input type="date" name="date_debut" class="form-control" style="max-width:180px;" value="<?php echo htmlspecialchars($date_debut); ?>">
-                    <input type="date" name="date_fin" class="form-control" style="max-width:180px;" value="<?php echo htmlspecialchars($date_fin); ?>">
+                    <input type="date" name="date_debut" class="form-control stats-date-input" value="<?php echo htmlspecialchars($date_debut); ?>">
+                    <input type="date" name="date_fin" class="form-control stats-date-input" value="<?php echo htmlspecialchars($date_fin); ?>">
                     <button type="submit" class="btn-action-small btn-primary border-0">Filtrer</button>
                 </form>
 
                 <?php if(empty($stats_filtrees)): ?>
                     <div class="alert-waiting text-center p-3 border border-warning text-warning bg-transparent rounded">Aucune donnee statistique trouvee. Les statistiques se rempliront apres les nouvelles commandes.</div>
                 <?php else: ?>
+                    <?php
+                    $stats_api_query = http_build_query(array_filter([
+                        'stats_menu' => $filtre_menu,
+                        'date_debut' => $date_debut,
+                        'date_fin' => $date_fin,
+                    ], fn($value) => $value !== ''));
+                    $stats_api_url = 'api/admin_stats.php' . ($stats_api_query !== '' ? '?' . $stats_api_query : '');
+                    ?>
                     <div class="p-3 bg-white rounded shadow-sm">
-                        <canvas id="graphiqueCommandes" height="100"></canvas>
+                        <canvas id="graphiqueCommandes" height="100" data-api-url="<?php echo htmlspecialchars($stats_api_url, ENT_QUOTES, 'UTF-8'); ?>"></canvas>
                     </div>
                     <div class="table-responsive mt-4">
                         <table class="custom-table">
@@ -208,29 +212,7 @@ include 'includes/header.php';
                             </tbody>
                         </table>
                     </div>
-
                     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-                    <script>
-                        const labelsMenus = <?php echo json_encode(array_column($stats_filtrees, 'nom_menu'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
-                        const dataCommandes = <?php echo json_encode(array_column($stats_filtrees, 'nombre_commandes'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
-                        const ctx = document.getElementById('graphiqueCommandes').getContext('2d');
-
-                        new Chart(ctx, {
-                            type: 'bar',
-                            data: {
-                                labels: labelsMenus,
-                                datasets: [{
-                                    label: 'Nombre de commandes par menu',
-                                    data: dataCommandes,
-                                    backgroundColor: 'rgba(245, 158, 11, 0.8)',
-                                    borderColor: 'rgb(245, 158, 11)',
-                                    borderWidth: 1,
-                                    borderRadius: 4
-                                }]
-                            },
-                            options: { responsive: true, scales: { y: { beginAtZero: true } } }
-                        });
-                    </script>
                 <?php endif; ?>
             </div>
         </div>

@@ -2,8 +2,10 @@
 require_once 'includes/security.php';
 require_once 'includes/db.php';
 require_once 'includes/mailer.php';
+require_once 'includes/classes/UserRepository.php';
 
 $message = "";
+$userRepository = new UserRepository($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -35,9 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hash = password_hash($password_clair, PASSWORD_DEFAULT);
 
         try {
-            // Utilisation BDD
-            $insert = $pdo->prepare("INSERT INTO utilisateur (nom, prenom, email, gsm, adresse_postale, mot_de_passe, role) VALUES (?, ?, ?, ?, ?, ?, 'utilisateur')");
-            $insert->execute([$nom, $prenom, $email, $gsm, $adresse_postale, $hash]);
+            $userRepository->createCustomer($nom, $prenom, $email, $gsm, $adresse_postale, $hash);
 
             send_app_email(
                 $email,
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="container py-5 mt-5">
     <div class="glass-panel p-4 p-md-5 form-container-large">
-        <h2 class="logo-font text-center mb-4 text-white" style="font-size: 2.5rem;">Créer un compte</h2>
+        <h2 class="logo-font text-center mb-4 text-white auth-title">Créer un compte</h2>
 
         <?php if(!empty($message)) echo $message; ?>
 
@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="password" name="mot_de_passe" class="form-control" required>
             <p class="text-muted small mb-4">Min. 10 caractères, 1 Majuscule, 1 Chiffre, 1 Caractère spécial (@$!%*?&).</p>
 
-            <label class="text-muted small mb-4" style="display:block;">
+            <label class="text-muted small mb-4 consent-label">
                 <input type="checkbox" name="accept_confidentialite" required>
                 J'accepte la <a href="confidentialite" class="text-gold">politique de confidentialité</a>.
             </label>

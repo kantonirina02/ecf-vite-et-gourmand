@@ -5,6 +5,10 @@ require_once 'includes/mailer.php';
 require_once 'includes/order_history.php';
 require_once 'includes/order_status.php';
 require_once 'includes/nosql_stats.php';
+require_once 'includes/classes/MenuRepository.php';
+require_once 'includes/classes/OrderPriceCalculator.php';
+require_once 'includes/classes/OrderRepository.php';
+require_once 'includes/classes/UserRepository.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login?erreur=connexion_requise');
@@ -17,19 +21,18 @@ if (empty($_GET['id_menu'])) {
 }
 
 $id_menu = (int) $_GET['id_menu'];
+$menuRepository = new MenuRepository($pdo);
+$orderRepository = new OrderRepository($pdo);
 
-$req_menu = $pdo->prepare("SELECT * FROM menu WHERE id_menu = ?");
-$req_menu->execute([$id_menu]);
-$menu = $req_menu->fetch(PDO::FETCH_ASSOC);
+$menu = $menuRepository->findById($id_menu);
 
 if (!$menu) {
     header('Location: menus');
     exit;
 }
 
-$req_user = $pdo->prepare("SELECT * FROM utilisateur WHERE id_utilisateur = ?");
-$req_user->execute([$_SESSION['user_id']]);
-$user = $req_user->fetch(PDO::FETCH_ASSOC);
+$userRepository = new UserRepository($pdo);
+$user = $userRepository->findById((int) $_SESSION['user_id']);
 
 if (!$user) {
     header('Location: logout');
@@ -65,9 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ensure_order_history_table($pdo);
             $pdo->beginTransaction();
 
-            $req_menu_lock = $pdo->prepare("SELECT * FROM menu WHERE id_menu = ? FOR UPDATE");
-            $req_menu_lock->execute([$id_menu]);
-            $menu_lock = $req_menu_lock->fetch(PDO::FETCH_ASSOC);
+            $menu_lock = $menuRepository->findByIdForUpdate($id_menu);
 
             if (!$menu_lock) {
                 throw new RuntimeException('menu');
@@ -81,37 +82,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('minimum');
             }
 
-            $prix_menu_total = (float) $menu_lock['prix_min'] * $nb_personnes;
+            $priceCalculator = new OrderPriceCalculator();
+            $priceDetails = $priceCalculator->calculate(
+                (float) $menu_lock['prix_min'],
+                (int) $menu_lock['nb_personnes_min'],
+                $nb_personnes,
+                $est_hors_bordeaux,
+                $distance_km
+            );
+            $prix_total_final = $priceDetails['total'];
 
-            if ($nb_personnes >= ((int) $menu_lock['nb_personnes_min'] + 5)) {
-                $prix_menu_total *= 0.90;
-            }
-
-            $frais_livraison = $est_hors_bordeaux ? 5 + (0.59 * $distance_km) : 0;
-            $prix_total_final = round($prix_menu_total + $frais_livraison, 2);
-
-            $update_stock = $pdo->prepare("UPDATE menu SET stock = stock - 1 WHERE id_menu = ? AND stock > 0");
-            $update_stock->execute([$id_menu]);
-
-            if ($update_stock->rowCount() !== 1) {
+            if (!$menuRepository->decreaseStockIfAvailable($id_menu)) {
                 throw new RuntimeException('stock');
             }
 
-            $insert = $pdo->prepare("
-                INSERT INTO commande (date_prestation, heure_prestation, lieu_prestation, nb_personnes, prix_total, statut, id_utilisateur, id_menu)
-                VALUES (?, ?, ?, ?, ?, 'en_attente', ?, ?)
-            ");
-            $insert->execute([
+            $id_commande = $orderRepository->createPendingOrder(
                 $date_prestation,
                 $heure_prestation,
                 $lieu_prestation,
                 $nb_personnes,
                 $prix_total_final,
-                $_SESSION['user_id'],
-                $id_menu,
-            ]);
-
-            $id_commande = (int) $pdo->lastInsertId();
+                (int) $_SESSION['user_id'],
+                $id_menu
+            );
             add_order_history($pdo, $id_commande, 'en_attente', 'Commande créée par le client.');
 
             $pdo->commit();
@@ -148,11 +141,13 @@ include 'includes/header.php';
 ?>
 
 <div class="container py-5 mt-5">
-    <h2 class="logo-font text-white mb-5 text-center" style="font-size: 2.5rem;">Finaliser votre commande</h2>
+    <h2 class="logo-font text-white mb-5 text-center auth-title">Finaliser votre commande</h2>
 
     <?php if(!empty($message)) echo $message; ?>
 
-    <form method="POST" action="" id="formCommande">
+    <form method="POST" action="" id="formCommande"
+          data-unit-price="<?php echo htmlspecialchars((string) (float) $menu['prix_min'], ENT_QUOTES, 'UTF-8'); ?>"
+          data-min-people="<?php echo (int) $menu['nb_personnes_min']; ?>">
         <?php echo csrf_field(); ?>
         <div class="row g-5">
 
@@ -213,7 +208,7 @@ include 'includes/header.php';
                         <label class="form-check-label text-white" for="checkHorsBordeaux">La livraison est en dehors de la ville de Bordeaux</label>
                     </div>
 
-                    <div class="mb-3" id="divDistance" style="display: none;">
+                    <div class="mb-3 is-hidden" id="divDistance">
                         <label class="form-label text-warning" for="inputDistance"><i class="fa-solid fa-truck"></i> Distance depuis Bordeaux en kilomètres</label>
                         <input type="number" step="0.1" min="0" name="distance_km" id="inputDistance" class="form-control border-warning" value="0">
                         <small class="text-muted">Facturation : 5 EUR de base + 0.59 EUR par km</small>
@@ -235,12 +230,12 @@ include 'includes/header.php';
                         <span id="recapMenuPrix">0.00 EUR</span>
                     </div>
 
-                    <div class="summary-line text-success" id="divReduction" style="display:none;">
+                    <div class="summary-line text-success is-hidden" id="divReduction">
                         <span>Réduction de groupe (-10%)</span>
                         <span id="recapReduction">-0.00 EUR</span>
                     </div>
 
-                    <div class="summary-line text-warning" id="divLivraison" style="display:none;">
+                    <div class="summary-line text-warning is-hidden" id="divLivraison">
                         <span>Frais de livraison hors Bordeaux</span>
                         <span id="recapLivraison">+0.00 EUR</span>
                     </div>
@@ -250,67 +245,14 @@ include 'includes/header.php';
                         <span id="recapTotal">0.00 EUR</span>
                     </div>
 
-                    <button type="submit" class="btn-primary w-100 mt-4 border-0 py-3" style="font-size: 1.1rem;">
+                    <button type="submit" class="btn-primary w-100 mt-4 border-0 py-3 btn-submit-large">
                         <i class="fa-solid fa-check-circle me-2"></i> Confirmer la commande
                     </button>
-                    <p class="text-center text-muted mt-3" style="font-size: 0.8rem;">En cliquant sur confirmer, vous acceptez nos Conditions Générales de Vente.</p>
+                    <p class="text-center text-muted mt-3 order-terms-note">En cliquant sur confirmer, vous acceptez nos Conditions Générales de Vente.</p>
                 </div>
             </div>
         </div>
     </form>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const prixUnitaire = <?php echo json_encode((float)$menu['prix_min']); ?>;
-    const minPersonnes = <?php echo json_encode((int)$menu['nb_personnes_min']); ?>;
-    const inputPersonnes = document.getElementById('inputPersonnes');
-    const checkHorsBordeaux = document.getElementById('checkHorsBordeaux');
-    const divDistance = document.getElementById('divDistance');
-    const inputDistance = document.getElementById('inputDistance');
-    const recapNb = document.getElementById('recapNb');
-    const recapMenuPrix = document.getElementById('recapMenuPrix');
-    const divReduction = document.getElementById('divReduction');
-    const recapReduction = document.getElementById('recapReduction');
-    const divLivraison = document.getElementById('divLivraison');
-    const recapLivraison = document.getElementById('recapLivraison');
-    const recapTotal = document.getElementById('recapTotal');
-
-    function formatEUR(value) {
-        return value.toFixed(2) + ' EUR';
-    }
-
-    function calculerPrix() {
-        let nb = parseInt(inputPersonnes.value, 10) || minPersonnes;
-        if (nb < minPersonnes) nb = minPersonnes;
-
-        const prixMenuBase = nb * prixUnitaire;
-        const reduction = nb >= (minPersonnes + 5) ? prixMenuBase * 0.10 : 0;
-        let livraison = 0;
-
-        if (checkHorsBordeaux.checked) {
-            divDistance.style.display = 'block';
-            const km = parseFloat(inputDistance.value) || 0;
-            livraison = km > 0 ? 5 + (0.59 * km) : 0;
-            divLivraison.style.display = 'flex';
-        } else {
-            divDistance.style.display = 'none';
-            divLivraison.style.display = 'none';
-        }
-
-        divReduction.style.display = reduction > 0 ? 'flex' : 'none';
-        recapNb.textContent = nb;
-        recapMenuPrix.textContent = formatEUR(prixMenuBase);
-        recapReduction.textContent = '-' + formatEUR(reduction);
-        recapLivraison.textContent = '+' + formatEUR(livraison);
-        recapTotal.textContent = formatEUR(prixMenuBase - reduction + livraison);
-    }
-
-    inputPersonnes.addEventListener('input', calculerPrix);
-    checkHorsBordeaux.addEventListener('change', calculerPrix);
-    inputDistance.addEventListener('input', calculerPrix);
-    calculerPrix();
-});
-</script>
 
 <?php include 'includes/footer.php'; ?>
