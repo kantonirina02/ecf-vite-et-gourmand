@@ -75,6 +75,20 @@ final class OrderRepository
         return $order ?: null;
     }
 
+    public function findEditableOrder(int $orderId): ?array
+    {
+        $statement = $this->pdo->prepare("
+            SELECT c.*, m.prix_min, m.nb_personnes_min
+            FROM commande c
+            JOIN menu m ON c.id_menu = m.id_menu
+            WHERE c.id_commande = ?
+        ");
+        $statement->execute([$orderId]);
+        $order = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $order ?: null;
+    }
+
     public function updateForUser(
         int $orderId,
         int $userId,
@@ -90,6 +104,24 @@ final class OrderRepository
             WHERE id_commande = ? AND id_utilisateur = ?
         ");
         $statement->execute([$serviceDate, $serviceTime, $serviceAddress, $people, $totalPrice, $orderId, $userId]);
+
+        return $statement->rowCount() === 1;
+    }
+
+    public function updateOrderDetails(
+        int $orderId,
+        string $serviceDate,
+        string $serviceTime,
+        string $serviceAddress,
+        int $people,
+        float $totalPrice
+    ): bool {
+        $statement = $this->pdo->prepare("
+            UPDATE commande
+            SET date_prestation = ?, heure_prestation = ?, lieu_prestation = ?, nb_personnes = ?, prix_total = ?
+            WHERE id_commande = ?
+        ");
+        $statement->execute([$serviceDate, $serviceTime, $serviceAddress, $people, $totalPrice, $orderId]);
 
         return $statement->rowCount() === 1;
     }

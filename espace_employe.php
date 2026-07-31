@@ -11,6 +11,7 @@ require_once 'includes/classes/MenuRepository.php';
 require_once 'includes/classes/OrderRepository.php';
 require_once 'includes/classes/ReviewRepository.php';
 require_once 'includes/classes/ScheduleRepository.php';
+require_once 'includes/classes/OrderPriceCalculator.php';
 
 require_role(['employe', 'admin']);
 
@@ -18,6 +19,7 @@ $allergenRepository = new AllergenRepository($pdo);
 $dishRepository = new DishRepository($pdo);
 $menuRepository = new MenuRepository($pdo);
 $orderRepository = new OrderRepository($pdo);
+$priceCalculator = new OrderPriceCalculator();
 $reviewRepository = new ReviewRepository($pdo);
 $scheduleRepository = new ScheduleRepository($pdo);
 $message = "";
@@ -259,6 +261,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_statut_command
             }
             error_log($e->getMessage());
             $message = "<div class='alert-error'>Impossible de mettre à jour cette commande.</div>";
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_modifier_commande'])) {
+    $idCmd = (int) ($_POST['id_commande'] ?? 0);
+    $datePrestation = $_POST['date_prestation'] ?? '';
+    $heurePrestation = $_POST['heure_prestation'] ?? '';
+    $lieuPrestation = trim($_POST['lieu_prestation'] ?? '');
+    $nbPersonnes = (int) ($_POST['nb_personnes'] ?? 0);
+    $horsBordeaux = isset($_POST['hors_bordeaux']);
+    $distanceKm = $horsBordeaux ? (float) ($_POST['distance_km'] ?? 0) : 0;
+
+    if (!is_valid_date_string($datePrestation)) {
+        $message = "<div class='alert-error'>La date de prestation est invalide.</div>";
+    } elseif (!preg_match('/^\d{2}:\d{2}$/', $heurePrestation)) {
+        $message = "<div class='alert-error'>L'heure est invalide.</div>";
+    } elseif ($lieuPrestation === '') {
+        $message = "<div class='alert-error'>Le lieu de prestation est obligatoire.</div>";
+    } elseif (!$horsBordeaux && stripos($lieuPrestation, 'bordeaux') === false) {
+        $message = "<div class='alert-error'>Cette adresse ne semble pas être à Bordeaux. Cochez hors Bordeaux et indiquez la distance.</div>";
+    } elseif ($horsBordeaux && $distanceKm <= 0) {
+        $message = "<div class='alert-error'>La distance hors Bordeaux doit être supérieure à 0 km.</div>";
+    } else {
+        try {
+            $commande = $orderRepository->findEditableOrder($idCmd);
+
+            if (!$commande) {
+                throw new RuntimeException('Commande introuvable.');
+            }
+
+            if ($nbPersonnes < (int) $commande['nb_personnes_min']) {
+                throw new RuntimeException('Le nombre de personnes est inférieur au minimum du menu.');
+            }
+
+            $priceDetails = $priceCalculator->calculate(
+                (float) $commande['prix_min'],
+                (int) $commande['nb_personnes_min'],
+                $nbPersonnes,
+                $horsBordeaux,
+                $distanceKm
+            );
+            $prixTotal = $priceDetails['total'];
+
+            $orderRepository->updateOrderDetails(
+                $idCmd,
+                $datePrestation,
+                $heurePrestation,
+                $lieuPrestation,
+                $nbPersonnes,
+                $prixTotal
+            );
+
+            ensure_order_history_table($pdo);
+            add_order_history($pdo, $idCmd, normalize_order_status($commande['statut']), 'Détails de la commande modifiés par un employé.');
+            nosql_sync_stats_from_sql($pdo);
+            $message = "<div class='alert-success'>Détails de la commande modifiés avec succès.</div>";
+        } catch (Throwable $e) {
+            $message = "<div class='alert-error'>" . htmlspecialchars($e->getMessage()) . "</div>";
         }
     }
 }
@@ -531,6 +592,44 @@ include 'includes/header.php';
                                         </select>
                                         <input type="text" name="motif" class="form-control" placeholder="Motif si annulation">
                                         <button type="submit" class="btn-action-small btn-primary border-0">Mettre à jour</button>
+                                    </form>
+                                    <button class="btn-action-small btn-outline js-toggle-row mt-2 w-100" type="button" data-target="formModifCmd<?php echo (int)$cmd['id_commande']; ?>" data-display="table-row">Modifier détails</button>
+                                </td>
+                            </tr>
+                            <tr id="formModifCmd<?php echo (int)$cmd['id_commande']; ?>" class="is-hidden">
+                                <td colspan="5" class="order-form-cell">
+                                    <form method="POST" action="">
+                                        <?php echo csrf_field(); ?>
+                                        <input type="hidden" name="action_modifier_commande" value="1">
+                                        <input type="hidden" name="id_commande" value="<?php echo (int)$cmd['id_commande']; ?>">
+
+                                        <div class="row">
+                                            <div class="col-md-3 mb-3">
+                                                <label class="form-label">Date</label>
+                                                <input type="date" name="date_prestation" class="form-control" value="<?php echo htmlspecialchars($cmd['date_prestation']); ?>" required>
+                                            </div>
+                                            <div class="col-md-3 mb-3">
+                                                <label class="form-label">Heure</label>
+                                                <input type="time" name="heure_prestation" class="form-control" value="<?php echo htmlspecialchars($cmd['heure_prestation']); ?>" required>
+                                            </div>
+                                            <div class="col-md-3 mb-3">
+                                                <label class="form-label">Convives</label>
+                                                <input type="number" name="nb_personnes" class="form-control" min="1" value="<?php echo (int)$cmd['nb_personnes']; ?>" required>
+                                            </div>
+                                            <div class="col-md-3 mb-3">
+                                                <label class="form-label">Distance hors Bordeaux</label>
+                                                <input type="number" name="distance_km" class="form-control" min="0" step="0.1" value="0">
+                                                <label class="text-muted small"><input type="checkbox" name="hors_bordeaux"> Hors Bordeaux</label>
+                                            </div>
+                                        </div>
+
+                                        <label class="form-label">Lieu de prestation</label>
+                                        <textarea name="lieu_prestation" class="form-control" required><?php echo htmlspecialchars($cmd['lieu_prestation']); ?></textarea>
+
+                                        <div class="form-actions mt-3">
+                                            <button type="button" class="btn-action-small btn-outline js-toggle-row" data-target="formModifCmd<?php echo (int)$cmd['id_commande']; ?>" data-display="none">Fermer</button>
+                                            <button type="submit" class="btn-action-small btn-primary border-0">Enregistrer détails</button>
+                                        </div>
                                     </form>
                                 </td>
                             </tr>
