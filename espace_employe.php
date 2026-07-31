@@ -656,7 +656,12 @@ include 'includes/header.php';
                 <label class="form-label">Thème</label>
                 <input type="text" name="theme" class="form-control" required>
                 <label class="form-label">Régime</label>
-                <input type="text" name="regime" class="form-control" required>
+                <select name="regime" class="form-control" required>
+                    <option value="">Sélectionnez un régime</option>
+                    <option value="classique">Classique</option>
+                    <option value="vegetarien">Végétarien</option>
+                    <option value="vegan">Vegan</option>
+                </select>
                 <label class="form-label">Plats du menu</label>
                 <select name="plats_menu[]" class="form-control" multiple size="6">
                     <?php foreach($plats as $plat): ?>
@@ -729,7 +734,12 @@ include 'includes/header.php';
                                         <label class="form-label">Thème</label>
                                         <input type="text" name="theme" class="form-control" value="<?php echo htmlspecialchars($menu['theme']); ?>" required>
                                         <label class="form-label">Régime</label>
-                                        <input type="text" name="regime" class="form-control" value="<?php echo htmlspecialchars($menu['regime']); ?>" required>
+                                        <select name="regime" class="form-control" required>
+                                            <?php $currentRegime = strtolower(trim($menu['regime'])); ?>
+                                            <option value="classique" <?php echo $currentRegime === 'classique' ? 'selected' : ''; ?>>Classique</option>
+                                            <option value="vegetarien" <?php echo in_array($currentRegime, ['vegetarien', 'végétarien', 'végétarienne']) ? 'selected' : ''; ?>>Végétarien</option>
+                                            <option value="vegan" <?php echo $currentRegime === 'vegan' ? 'selected' : ''; ?>>Vegan</option>
+                                        </select>
                                         <label class="form-label">Plats du menu</label>
                                         <select name="plats_menu[]" class="form-control" multiple size="6">
                                             <?php foreach($plats as $plat): ?>
